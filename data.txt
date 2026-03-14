@@ -1,0 +1,34 @@
+
+https://developers.facebook.com/apps/1235233281612914/
+Phone number ID: 1051021614753488
+WhatsApp Business Account ID: 950974577477686
+Test Number: +15551822621
+Temp Access Token: EAARjcCj3HHIBQ7ZCOiznIf8kfqSDjqxETGa8kd4WgmJuBupS9ubGR7ZCipvQacKdwNUCVFvx2QrF9UiaOSWcZAMbZCGPi5Q4xg4pIIIcA02jf7dtczk1RSGYjupjgGhIdwWK1fAkFqMpvdGj3io5RPyDppZBZB3mAswqF8DxeS4AIGP2g61NT5XkY40OZBPTrqesnkaSKWvh6zPm4FdwZAHZAl2h5TtYCKmMED8CiLOAp3SqoGWfbN1zl0CaK69jQ8maVppFa7rSs1Js2h4PvrbFUew7p
+Perm Access Token: EAARjcCj3HHIBQ1wUBNzZAKigFrSCcSpIchNR1NaGZBzd42L3anlkTmR2ZABzepaLyWZC2EFZBDacVZCaSLcZCUn91LzPOlRVZA2vi0Hqh3oQ8SZBEogKfdZC3d8mM6ZCZBMhtSTPM88XFgt7ZBVgSXHySYSwHtzJfWJS1BByVaDQWOmuX5nWKooHd4Lo22sUnfXscNYqrgTb2C26zzD4aIL8UtDKqyQ5HQDWzNxz8LyBWNHA7
+
+curl -i -X POST \
+  https://graph.facebook.com/v22.0/1051021614753488/messages \
+  -H 'Authorization: Bearer EAARjcCj3HHIBQ7ZCOiznIf8kfqSDjqxETGa8kd4WgmJuBupS9ubGR7ZCipvQacKdwNUCVFvx2QrF9UiaOSWcZAMbZCGPi5Q4xg4pIIIcA02jf7dtczk1RSGYjupjgGhIdwWK1fAkFqMpvdGj3io5RPyDppZBZB3mAswqF8DxeS4AIGP2g61NT5XkY40OZBPTrqesnkaSKWvh6zPm4FdwZAHZAl2h5TtYCKmMED8CiLOAp3SqoGWfbN1zl0CaK69jQ8maVppFa7rSs1Js2h4PvrbFUew7p' \
+  -H 'Content-Type: application/json' \
+  -d '{ "messaging_product": "whatsapp", "to": "918147317832", "type": "template", "template": { "name": "hello_world", "language": { "code": "en_US" } } }'
+
+ngrok domain:
+https://askew-unmellow-in.ngrok-free.dev
+ngrok http --domain=askew-unmellow-in.ngrok-free.dev 5678
+```
+
+You should see:
+```
+Forwarding  https://lucky-fox-42.ngrok-free.app → http://localhost:5678
+
+ERPNext
+API Key
+0e4bdd6485daf14
+
+API Secret
+f7219377d052ff5
+
+Bearer EAARjcCj3HHIBQ1wUBNzZAKigFrSCcSpIchNR1NaGZBzd42L3anlkTmR2ZABzepaLyWZC2EFZBDacVZCaSLcZCUn91LzPOlRVZA2vi0Hqh3oQ8SZBEogKfdZC3d8mM6ZCZBMhtSTPM88XFgt7ZBVgSXHySYSwHtzJfWJS1BByVaDQWOmuX5nWKooHd4Lo22sUnfXscNYqrgTb2C26zzD4aIL8UtDKqyQ5HQDWzNxz8LyBWNHA7
+
+https://developers.facebook.com/apps/1235233281612914/use_cases/customize/wa-dev-console/?use_case_enum=WHATSAPP_BUSINESS_MESSAGING&product_route=whatsapp-business&business_id=2158927178242149&selected_tab=wa-dev-console
+https://business.facebook.com/latest/settings/system_users?business_id=2158927178242149&selected_user_id=61582372778051

@@ -1,0 +1,302 @@
+version: "3.8"
+
+# ============================================================
+# RIFAH Connect — Docker Compose
+# Intel Mac / AWS x86_64 compatible
+# Services: ERPNext v15, n8n, MariaDB, Redis, ngrok
+# ============================================================
+
+services:
+
+  # ── Database ──────────────────────────────────────────────
+  mariadb:
+    image: mariadb:10.6
+    platform: linux/amd64
+    container_name: rifah_mariadb
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rifah@db2024}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - rifah_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rifah@db2024}"]
+      interval: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Redis Cache ───────────────────────────────────────────
+  redis-cache:
+    image: redis:6.2-alpine
+    platform: linux/amd64
+    container_name: rifah_redis_cache
+    restart: unless-stopped
+    networks:
+      - rifah_network
+
+  # ── Redis Queue ───────────────────────────────────────────
+  redis-queue:
+    image: redis:6.2-alpine
+    platform: linux/amd64
+    container_name: rifah_redis_queue
+    restart: unless-stopped
+    networks:
+      - rifah_network
+
+  # ── Configurator (runs once, creates common_site_config.json) ─
+  configurator:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_configurator
+    restart: "no"
+    entrypoint:
+      - bash
+      - -c
+      - |
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host mariadb;
+        bench set-config -g db_port 3306;
+        bench set-config -g redis_cache redis://redis-cache:6379;
+        bench set-config -g redis_queue redis://redis-queue:6379;
+        bench set-config -g redis_socketio redis://redis-cache:6379;
+        bench set-config -g socketio_port 9000;
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+    networks:
+      - rifah_network
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+
+  # ── ERPNext Backend (API + Workers) ───────────────────────
+  backend:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_backend
+    restart: unless-stopped
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+      - SOCKETIO_PORT=9000
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+      - erpnext_logs:/home/frappe/frappe-bench/logs
+      - rifah_uploads:/home/frappe/frappe-bench/sites/assets/uploads
+    networks:
+      - rifah_network
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+      configurator:
+        condition: service_completed_successfully
+
+  # ── ERPNext Frontend (Nginx proxy) ────────────────────────
+  frontend:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_frontend
+    restart: unless-stopped
+    command: nginx-entrypoint.sh
+    environment:
+      - BACKEND=backend:8000
+      - SOCKETIO=websocket:9000
+      - FRAPPE_SITE_NAME_HEADER=rifah.localhost
+      - UPSTREAM_REAL_IP_ADDRESS=127.0.0.1
+      - UPSTREAM_REAL_IP_HEADER=X-Forwarded-For
+      - UPSTREAM_REAL_IP_RECURSIVE=off
+      - PROXY_READ_TIMEOUT=120
+      - CLIENT_MAX_BODY_SIZE=50m
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+    ports:
+      - "8080:8080"
+    networks:
+      - rifah_network
+    depends_on:
+      - backend
+      - websocket
+
+  # ── ERPNext WebSocket ─────────────────────────────────────
+  websocket:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_websocket
+    restart: unless-stopped
+    command: node /home/frappe/frappe-bench/apps/frappe/socketio.js
+    environment:
+      - REDIS_CACHE=redis://redis-cache:6379
+      - REDIS_QUEUE=redis://redis-queue:6379
+      - REDIS_SOCKETIO=redis://redis-cache:6379
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+    networks:
+      - rifah_network
+    depends_on:
+      backend:
+        condition: service_started
+      configurator:
+        condition: service_completed_successfully
+
+  # ── ERPNext Queue Workers ─────────────────────────────────
+  queue-short:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_queue_short
+    restart: unless-stopped
+    command: bench worker --queue short,default
+    environment:
+      - DB_HOST=mariadb
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+    networks:
+      - rifah_network
+    depends_on:
+      - backend
+
+  queue-long:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_queue_long
+    restart: unless-stopped
+    command: bench worker --queue long,default
+    environment:
+      - DB_HOST=mariadb
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+    networks:
+      - rifah_network
+    depends_on:
+      - backend
+
+  # ── ERPNext Scheduler ─────────────────────────────────────
+  scheduler:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_scheduler
+    restart: unless-stopped
+    command: bench schedule
+    environment:
+      - DB_HOST=mariadb
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+    networks:
+      - rifah_network
+    depends_on:
+      - backend
+
+  # ── n8n Workflow Engine ───────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    platform: linux/amd64
+    container_name: rifah_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-rifah_admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-rifah@n8n2024}
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=${NGROK_URL:-http://localhost:5678}
+      - EXECUTIONS_PROCESS=main
+      - N8N_LOG_LEVEL=info
+      - GENERIC_TIMEZONE=Asia/Kolkata
+      # n8n Variables (accessible in workflows as $vars.XXX)
+      - N8N_VARIABLES_ERPNEXT_URL=http://backend:8000
+      - N8N_VARIABLES_META_PHONE_NUMBER_ID=${META_PHONE_NUMBER_ID}
+      - N8N_VARIABLES_META_VERIFY_TOKEN=rifah_verify_token_2024
+      - N8N_VARIABLES_ADMIN_WHATSAPP=${ADMIN_WHATSAPP}
+      - N8N_VARIABLES_UPLOAD_PATH=/uploads
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - rifah_uploads:/uploads
+    networks:
+      - rifah_network
+    depends_on:
+      - backend
+
+  # ── Site Creator (runs once then exits) ───────────────────
+  # This container creates the ERPNext site on first run
+  create-site:
+    image: frappe/erpnext:v15
+    platform: linux/amd64
+    container_name: rifah_create_site
+    restart: "no"
+    volumes:
+      - erpnext_sites:/home/frappe/frappe-bench/sites
+      - erpnext_logs:/home/frappe/frappe-bench/logs
+    entrypoint:
+      - bash
+      - -c
+      - |
+        wait-for-it -t 120 mariadb:3306;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 30 redis-queue:6379;
+        export start=`date +%s`;
+        until [[ -n `grep -hs ^ sites/common_site_config.json | python3 -c "import sys, json; cfg = json.load(sys.stdin); print(cfg.get('db_host', ''))"` ]]; do
+          echo "Waiting for sites/common_site_config.json to be created";
+          sleep 5;
+          if (( `date +%s`-start > 120 )); then echo "Waited too long. Giving up."; exit 1; fi;
+        done;
+        echo "common_site_config.json found";
+        bench new-site rifah.localhost \
+          --mariadb-root-password ${DB_ROOT_PASSWORD:-rifah@db2024} \
+          --admin-password ${ERPNEXT_ADMIN_PASSWORD:-admin123} \
+          --install-app erpnext \
+          --set-default 2>&1 | tee /home/frappe/frappe-bench/logs/site-creation.log;
+        echo "Site creation complete";
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    networks:
+      - rifah_network
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+# ── Volumes ───────────────────────────────────────────────
+volumes:
+  mariadb_data:
+    name: rifah_mariadb_data
+  erpnext_sites:
+    name: rifah_erpnext_sites
+  erpnext_logs:
+    name: rifah_erpnext_logs
+  n8n_data:
+    name: rifah_n8n_data
+  rifah_uploads:
+    name: rifah_uploads
+
+# ── Networks ──────────────────────────────────────────────
+networks:
+  rifah_network:
+    name: rifah_network
+    driver: bridge

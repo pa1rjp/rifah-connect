@@ -1,0 +1,87 @@
+{
+  "actions": [],
+  "autoname": "field:phone_number",
+  "creation": "2024-01-01 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "phone_number",
+    "current_step",
+    "status",
+    "last_activity",
+    "column_break_1",
+    "session_data",
+    "chat_history"
+  ],
+  "fields": [
+    {
+      "fieldname": "phone_number",
+      "fieldtype": "Data",
+      "label": "Phone Number",
+      "unique": 1,
+      "reqd": 1,
+      "bold": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "current_step",
+      "fieldtype": "Data",
+      "label": "Current Step",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "Active\nCompleted\nExpired",
+      "default": "Active",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "last_activity",
+      "fieldtype": "Datetime",
+      "label": "Last Activity"
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "session_data",
+      "fieldtype": "Long Text",
+      "label": "Session Data (JSON)"
+    },
+    {
+      "fieldname": "chat_history",
+      "fieldtype": "Long Text",
+      "label": "Chat History (JSON)"
+    }
+  ],
+  "links": [],
+  "modified": "2024-01-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Core",
+  "name": "RIFAH Session",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "read": 1,
+      "role": "System Manager",
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "read": 1,
+      "role": "All",
+      "write": 1
+    }
+  ],
+  "sort_field": "last_activity",
+  "sort_order": "DESC",
+  "title_field": "phone_number",
+  "track_changes": 0
+}

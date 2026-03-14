@@ -1,0 +1,1154 @@
+{
+  "name": "RIFAH Connect - Flow 1 Registration",
+  "nodes": [
+    {
+      "id": "node-wh-post",
+      "name": "WhatsApp Webhook POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "parameters": {
+        "path": "whatsapp-webhook",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "webhookId": "rifah-wa-post-webhook"
+    },
+    {
+      "id": "node-wh-get",
+      "name": "WhatsApp Webhook GET",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        200
+      ],
+      "parameters": {
+        "path": "whatsapp-webhook",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "rifah-wa-get-webhook"
+    },
+    {
+      "id": "node-verify-code",
+      "name": "Extract Verification Challenge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst query = $input.first().json.query || {};\nconst verifyToken = rifah_verify_token_2024 || 'rifah_verify_token_2024';\n\nif (query['hub.mode'] === 'subscribe' && query['hub.verify_token'] === verifyToken) {\n  return [{ json: { challenge: query['hub.challenge'], valid: true } }];\n}\nreturn [{ json: { challenge: 'ERROR', valid: false } }];\n"
+      }
+    },
+    {
+      "id": "node-respond-verify",
+      "name": "Respond Webhook Verification",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        700,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "node-extract-msg",
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// Parse Meta Cloud API Webhook Payload\nconst body = $input.first().json.body || $input.first().json;\n\nconst entry = body?.entry?.[0];\nconst change = entry?.changes?.[0];\nconst value = change?.value;\n\n// Ignore status updates (delivery receipts etc)\nif (value?.statuses && !value?.messages) {\n  return [{ json: { skip: true, reason: 'status_update' } }];\n}\n\nconst messages = value?.messages;\nif (!messages || messages.length === 0) {\n  return [{ json: { skip: true, reason: 'no_message' } }];\n}\n\nconst msg = messages[0];\nconst contact = value?.contacts?.[0];\n\nconst extracted = {\n  skip: false,\n  from: msg.from,\n  from_name: contact?.profile?.name || 'Unknown',\n  message_id: msg.id,\n  timestamp: msg.timestamp,\n  type: msg.type,\n  text: msg.text?.body || '',\n  phone_number_id: value?.metadata?.phone_number_id,\n  // Media fields\n  image_id: msg.image?.id || null,\n  image_mime: msg.image?.mime_type || null,\n  document_id: msg.document?.id || null,\n  document_filename: msg.document?.filename || null,\n  document_mime: msg.document?.mime_type || null,\n};\n\nreturn [{ json: extracted }];\n"
+      }
+    },
+    {
+      "id": "node-if-valid",
+      "name": "IF Valid Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-get-session",
+      "name": "Get Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        950,
+        320
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=http://backend:8000/api/resource/RIFAH Session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"phone_number\",\"=\",$('Extract Message').item.json.from]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"phone_number\",\"current_step\",\"session_data\",\"status\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-get-member",
+      "name": "Get Member",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        950,
+        480
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=http://backend:8000/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"whatsapp_number\",\"=\",$('Extract Message').item.json.from]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"full_name\",\"business_name\",\"city_state\",\"industry\",\"membership_tier\",\"status\",\"rifahmart_url\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-state-machine",
+      "name": "State Machine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// ============================================================\n// RIFAH Connect - Flow 1 State Machine\n// ============================================================\nconst msgNode = $('Extract Message').first().json;\nconst sessionRaw = $('Get Session').first().json;\nconst memberRaw = $('Get Member').first().json;\n\nconst phone = msgNode.from;\nconst msgType = msgNode.type || 'text';\nconst rawText = msgNode.text || '';\nconst msgText = rawText.trim().toUpperCase();\nconst rawTextOriginal = rawText.trim();\nconst hasMedia = ['image', 'document'].includes(msgType);\nconst mediaId = hasMedia ? (msgNode.image_id || msgNode.document_id) : null;\nconst mediaFilename = msgNode.document_filename || ('file_' + Date.now());\nconst mediaMimeType = msgNode.document_mime || 'image/jpeg';\n\n// Parse session\nconst sessionDocs = sessionRaw?.data || [];\nconst sessionDoc = sessionDocs.length > 0 ? sessionDocs[0] : {};\nlet currentStep = sessionDoc.current_step || 'NEW';\nlet sessionData = {};\ntry { sessionData = JSON.parse(sessionDoc.session_data || '{}'); } catch(e) {}\nconst sessionName = sessionDoc.name || null;\n\n// Parse existing member\nconst memberDocs = memberRaw?.data || [];\nconst memberExists = memberDocs.length > 0;\nconst member = memberExists ? memberDocs[0] : null;\n\nlet responseMsg = '';\nlet nextStep = currentStep;\nlet action = 'none';\nlet actionData = {};\n\n// ---- HELPER: Main Menu ----\nfunction mainMenu() {\n  return `\ud83d\udc4b *Welcome to RIFAH Connect!*\\n_Connecting 1 Lakh+ Businesses_\\n\\nPlease select an option:\\n\\n1\ufe0f\u20e3 Register / Update Business\\n2\ufe0f\u20e3 Find Vendors & Buyers\\n3\ufe0f\u20e3 Post a Requirement\\n4\ufe0f\u20e3 My Profile\\n5\ufe0f\u20e3 Help & Support\\n\\n_Reply with a number (1-5)_`;\n}\n\n// ---- HELPER: Membership Menu ----\nfunction membershipMenu() {\n  return `\ud83c\udff7\ufe0f *Step 5: Choose Your Membership*\\n\\n\ud83c\udd93 *FREE TIER (\u20b90/year)*\\n\u2022 Manual support\\n\u2022 2-3 WhatsApp groups\\n\u2022 Basic RifahMart listing\\n\u2022 24-48 hr response time\\n\\n\u2b50 *PREMIUM TIER (\u20b93,000/year)*\\n\u2022 24/7 automated bot\\n\u2022 5-10 WhatsApp groups\\n\u2022 Smart vendor matching\\n\u2022 Dashboard access\\n\u2022 Featured RifahMart listing\\n\u2022 2-4 hr response time\\n\\nReply: *FREE* or *PREMIUM*`;\n}\n\n// ---- STATE MACHINE ----\nswitch(currentStep) {\n\n  case 'NEW':\n    sessionData = { phone };\n    responseMsg = mainMenu();\n    nextStep = 'MENU';\n    break;\n\n  case 'MENU':\n    if (msgText === '1') {\n      if (memberExists) {\n        responseMsg = `\ud83d\udc4b Welcome back, *${member.full_name}*!\\n\\n\ud83e\udeaa Your RIFAH ID: *${member.rifah_id}*\\n\u2b50 Membership: ${member.membership_tier}\\n\\nWhat would you like to do?\\n\\n1\ufe0f\u20e3 Update my profile\\n2\ufe0f\u20e3 View current info\\n\\n_Reply 1 or 2_`;\n        nextStep = 'EXISTING_CHOICE';\n        sessionData.existing_member_id = member.name;\n        sessionData.existing_rifah_id = member.rifah_id;\n      } else {\n        responseMsg = `\u2705 Let's get you registered with RIFAH!\\n\\n*Question 1 of 6*\\n\\n\ud83d\udc64 What is your *full name*?`;\n        nextStep = 'Q1';\n      }\n    } else if (['2','3','4','5'].includes(msgText)) {\n      responseMsg = `\ud83d\udea7 This feature is coming soon!\\n\\nReply *1* to register your business.`;\n    } else {\n      responseMsg = mainMenu();\n      nextStep = 'MENU';\n    }\n    break;\n\n  case 'EXISTING_CHOICE':\n    if (msgText === '1') {\n      responseMsg = `\u270f\ufe0f Let's update your profile!\\n\\n*Question 1 of 6*\\n\\n\ud83d\udc64 What is your *full name*?\\n_(Current: ${member ? member.full_name : 'N/A'})_`;\n      nextStep = 'Q1';\n      sessionData.is_update = true;\n    } else if (msgText === '2') {\n      const m = member || {};\n      responseMsg = `\ud83d\udccb *Your Current RIFAH Profile*\\n\\n\ud83e\udeaa ID: *${m.rifah_id || 'N/A'}*\\n\ud83d\udc64 Name: ${m.full_name || 'N/A'}\\n\ud83c\udfe2 Business: ${m.business_name || 'N/A'}\\n\ud83d\udccd Location: ${m.city_state || 'N/A'}\\n\ud83c\udfed Industry: ${m.industry || 'N/A'}\\n\u2b50 Tier: ${m.membership_tier || 'N/A'}\\n\ud83d\udcca Status: ${m.status || 'N/A'}\\n\ud83c\udf10 RifahMart: ${m.rifahmart_url || 'Pending'}\\n\\nReply *1* for main menu.`;\n      nextStep = 'MENU';\n    } else {\n      responseMsg = `Please reply *1* to update profile or *2* to view info.`;\n    }\n    break;\n\n  case 'Q1':\n    if (!rawTextOriginal || rawTextOriginal.length < 2) {\n      responseMsg = `\u274c Please enter a valid full name.\\n\\n\ud83d\udc64 What is your *full name*?`;\n    } else {\n      sessionData.full_name = rawTextOriginal;\n      responseMsg = `\u2705 Got it, *${rawTextOriginal}*!\\n\\n*Question 2 of 6*\\n\\n\ud83c\udfe2 What is your *business name*?`;\n      nextStep = 'Q2';\n    }\n    break;\n\n  case 'Q2':\n    if (!rawTextOriginal || rawTextOriginal.length < 2) {\n      responseMsg = `\u274c Please enter a valid business name.\\n\\n\ud83c\udfe2 What is your *business name*?`;\n    } else {\n      sessionData.business_name = rawTextOriginal;\n      responseMsg = `\u2705 Got it!\\n\\n*Question 3 of 6*\\n\\n\ud83d\udccd Which *city and state* is your business located in?\\n\\n_Example: Pune, Maharashtra_`;\n      nextStep = 'Q3';\n    }\n    break;\n\n  case 'Q3':\n    if (!rawTextOriginal || rawTextOriginal.length < 3) {\n      responseMsg = `\u274c Please enter your city and state.\\n\\n\ud83d\udccd Which *city and state* are you in?\\n_Example: Pune, Maharashtra_`;\n    } else {\n      sessionData.city_state = rawTextOriginal;\n      responseMsg = `\u2705 Got it!\\n\\n*Question 4 of 6*\\n\\n\ud83c\udfed What is your *industry / business type*?\\n\\n_Examples: Manufacturing, Trading, Services, Retail, Export-Import, IT, Healthcare, Food & Beverages_`;\n      nextStep = 'Q4';\n    }\n    break;\n\n  case 'Q4':\n    if (!rawTextOriginal || rawTextOriginal.length < 2) {\n      responseMsg = `\u274c Please enter your industry type.\\n\\n\ud83c\udfed What is your *industry / business type*?`;\n    } else {\n      sessionData.industry = rawTextOriginal;\n      responseMsg = `\u2705 Got it!\\n\\n*Question 5 of 6*\\n\\n\ud83d\udcc5 How many *years* has your business been operating?\\n\\n_Reply with a number (e.g., 5)_`;\n      nextStep = 'Q5';\n    }\n    break;\n\n  case 'Q5':\n    const yearsNum = parseInt(msgText.replace(/[^0-9]/g, ''));\n    if (isNaN(yearsNum) || yearsNum < 0 || yearsNum > 200) {\n      responseMsg = `\u274c Please enter a valid number of years.\\n\\n\ud83d\udcc5 How many *years* has your business been operating?`;\n    } else {\n      sessionData.years_operating = yearsNum;\n      responseMsg = `\u2705 Got it!\\n\\n*Question 6 of 6*\\n\\n\ud83d\udcf1 Please *confirm your WhatsApp number*:\\n\\n*+${phone}*\\n\\nReply *YES* to confirm, or type a different number.`;\n      nextStep = 'Q6';\n    }\n    break;\n\n  case 'Q6':\n    if (msgText === 'YES' || msgText === 'Y') {\n      sessionData.confirmed_phone = phone;\n      responseMsg = `\u2705 Number confirmed: *+${phone}*\\n\\n\ud83d\udcc4 *Step 3: Document Verification*\\n\\nPlease upload your *business verification document*:\\n\\n\u2022 Udyam Registration Certificate\\n\u2022 OR GST Registration Certificate\\n\\n_Accepted: PDF, JPG, PNG_`;\n      nextStep = 'DOC_UPLOAD';\n    } else if (/^[0-9]{10,13}$/.test(msgText.replace(/[^0-9]/g, ''))) {\n      sessionData.confirmed_phone = msgText.replace(/[^0-9]/g, '');\n      responseMsg = `\u2705 Using number: *+${sessionData.confirmed_phone}*\\n\\n\ud83d\udcc4 *Step 3: Document Verification*\\n\\nPlease upload your *business verification document*:\\n\\n\u2022 Udyam Registration Certificate\\n\u2022 OR GST Registration Certificate\\n\\n_Accepted: PDF, JPG, PNG_`;\n      nextStep = 'DOC_UPLOAD';\n    } else {\n      responseMsg = `Please reply *YES* to confirm +${phone}, or enter your correct 10-digit number.`;\n    }\n    break;\n\n  case 'DOC_UPLOAD':\n    if (hasMedia && mediaId) {\n      sessionData.doc_media_id = mediaId;\n      sessionData.doc_filename = mediaFilename;\n      sessionData.doc_media_type = msgType;\n      sessionData.doc_mime = mediaMimeType;\n      responseMsg = `\u2705 Document received!\\n\\n\ud83d\udce6 *Step 4: Product Materials*\\n_(Optional but recommended)_\\n\\nUpload your product materials to attract more buyers:\\n\\n\u2022 Product catalogs (PDF)\\n\u2022 Product images (JPG/PNG)\\n\u2022 Brochures / marketing materials\\n\\n_You can upload multiple files._\\n_Reply *SKIP* to skip, or *DONE* when finished uploading._`;\n      nextStep = 'PRODUCT_UPLOAD';\n      action = 'download_doc';\n      actionData = { media_id: mediaId, media_type: msgType, filename: mediaFilename };\n    } else {\n      responseMsg = `\u274c Please upload your document as a file.\\n\\n\ud83d\udcc4 Upload your *Udyam Registration* or *GST Certificate* (PDF, JPG, or PNG):`;\n    }\n    break;\n\n  case 'PRODUCT_UPLOAD':\n    const pMaterials = sessionData.product_materials || [];\n    if (msgText === 'SKIP' || msgText === 'DONE') {\n      sessionData.product_materials = pMaterials;\n      responseMsg = membershipMenu();\n      nextStep = 'TIER_SELECT';\n    } else if (hasMedia && mediaId) {\n      pMaterials.push({ media_id: mediaId, type: msgType, filename: mediaFilename });\n      sessionData.product_materials = pMaterials;\n      const count = pMaterials.length;\n      responseMsg = `\u2705 File ${count} received!\\n\\nUpload another file, or reply *DONE* when finished.`;\n      nextStep = 'PRODUCT_UPLOAD';\n      action = 'download_product_doc';\n      actionData = { media_id: mediaId, media_type: msgType, filename: mediaFilename };\n    } else {\n      responseMsg = `Please upload a product file (PDF/JPG/PNG), or reply *SKIP* to skip / *DONE* if finished.`;\n    }\n    break;\n\n  case 'TIER_SELECT':\n    if (msgText === 'FREE') {\n      sessionData.tier = 'FREE';\n      responseMsg = '';\n      nextStep = 'PROCESSING';\n      action = 'create_free_member';\n      actionData = { ...sessionData };\n    } else if (msgText === 'PREMIUM') {\n      sessionData.tier = 'PREMIUM';\n      responseMsg = `\ud83d\udcb3 *Premium Membership: \u20b93,000/year*\\n\\nPlease make payment to:\\n\\n\ud83d\udd38 *UPI ID:* rifah@upi\\n\ud83d\udd38 *Bank Transfer:*\\n   Account: RIFAH Chamber of Commerce\\n   A/C No: 1234567890\\n   IFSC: HDFC0001234\\n   Bank: HDFC Bank\\n\\nAfter payment, please:\\n\ud83d\udcf8 Upload *payment screenshot*\\nOR\\n\ud83d\udcac Send *transaction ID / UTR number*\\n\\n_We verify within 2 hours._`;\n      nextStep = 'PAYMENT_WAIT';\n    } else {\n      responseMsg = membershipMenu();\n    }\n    break;\n\n  case 'PAYMENT_WAIT':\n    if (hasMedia && mediaId) {\n      sessionData.payment_proof_id = mediaId;\n      sessionData.payment_type = 'screenshot';\n      responseMsg = `\u2705 Payment screenshot received!\\n\\n\u23f3 *Verifying your payment...*\\n\\nOur team will confirm within *2 hours*.\\nYou'll receive a WhatsApp confirmation once verified.\\n\\nThank you for choosing RIFAH Premium! \ud83d\ude4f`;\n      nextStep = 'PAYMENT_PENDING';\n      action = 'create_premium_pending';\n      actionData = { ...sessionData };\n    } else if (rawTextOriginal.length >= 8) {\n      sessionData.payment_transaction_id = rawTextOriginal;\n      sessionData.payment_type = 'transaction_id';\n      responseMsg = `\u2705 Transaction ID received: *${rawTextOriginal}*\\n\\n\u23f3 *Verifying your payment...*\\n\\nOur team will confirm within *2 hours*.\\nYou'll receive a WhatsApp confirmation once verified.\\n\\nThank you for choosing RIFAH Premium! \ud83d\ude4f`;\n      nextStep = 'PAYMENT_PENDING';\n      action = 'create_premium_pending';\n      actionData = { ...sessionData };\n    } else {\n      responseMsg = `Please upload your *payment screenshot* or send your *transaction ID / UTR number*.\\n\\n\ud83d\udcb3 UPI: rifah@upi`;\n    }\n    break;\n\n  case 'PAYMENT_PENDING':\n    responseMsg = `\u23f3 Your payment is being verified. You'll receive confirmation shortly.\\n\\nIf you have questions, contact us directly.`;\n    break;\n\n  case 'PROCESSING':\n    responseMsg = `\u23f3 Processing your registration...`;\n    break;\n\n  default:\n    sessionData = { phone };\n    responseMsg = mainMenu();\n    nextStep = 'MENU';\n}\n\nreturn [{\n  json: {\n    phone,\n    responseMsg,\n    nextStep,\n    action,\n    actionData: JSON.stringify(actionData),\n    sessionData: JSON.stringify(sessionData),\n    sessionName,\n    currentStep,\n    msgType,\n    hasMedia,\n    mediaId,\n    shouldSendMsg: responseMsg.length > 0\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "node-if-send",
+      "name": "IF Should Send Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.shouldSendMsg }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-send-wa",
+      "name": "Send WhatsApp Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1700,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('State Machine').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('State Machine').item.json.responseMsg) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "meta-auth-cred",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "id": "node-upsert-session-code",
+      "name": "Prepare Session Upsert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// Determine if we should POST (new) or PUT (update) session\nconst smData = $('State Machine').first().json;\nconst sessionName = smData.sessionName;\n\nreturn [{\n  json: {\n    isNew: !sessionName,\n    sessionName,\n    phone: smData.phone,\n    nextStep: smData.nextStep,\n    sessionData: smData.sessionData,\n    now: new Date().toISOString().replace('T', ' ').substring(0, 19)\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "node-if-new-session",
+      "name": "IF New Session",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1950,
+        480
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c3",
+              "leftValue": "={{ $json.isNew }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-create-session",
+      "name": "Create Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://backend:8000/api/resource/RIFAH Session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"doctype\": \"RIFAH Session\",\n  \"phone_number\": \"{{ $json.phone }}\",\n  \"current_step\": \"{{ $json.nextStep }}\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"status\": \"Active\",\n  \"last_activity\": \"{{ $json.now }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-update-session",
+      "name": "Update Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        560
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://backend:8000/api/resource/RIFAH Session/{{ $json.phone }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"{{ $json.nextStep }}\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"last_activity\": \"{{ $json.now }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-switch-action",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1700,
+        620
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "create_free_member",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create_free"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "create_premium_pending",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create_premium"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "r3",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "download_doc",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "download_doc"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-count-free",
+      "name": "Get Free Member Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1950,
+        720
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=http://backend:8000/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "[[\"membership_tier\",\"=\",\"FREE\"]]"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\"]"
+            },
+            {
+              "name": "limit_page_length",
+              "value": "999"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-build-free",
+      "name": "Build Free Member Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        720
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// Generate RIFAH ID and build member payload for FREE tier\nconst stateMachineData = $('State Machine').first().json;\nconst countResult = $input.first().json;\n\nconst actionData = JSON.parse(stateMachineData.actionData || '{}');\nconst existingCount = countResult?.data?.length || 0;\nconst newIndex = String(existingCount + 1).padStart(4, '0');\nconst year = new Date().getFullYear();\nconst rifah_id = `RIF-FREE-${year}-${newIndex}`;\n\n// Build business name slug for RifahMart URL\nconst slug = (actionData.business_name || 'business')\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s]/g, '')\n  .replace(/\\s+/g, '-')\n  .substring(0, 50);\n\nconst rifahmart_url = `https://rifahmart.com/${rifah_id}/${slug}`;\n\nconst payload = {\n  doctype: 'RIFAH Member',\n  rifah_id,\n  full_name: actionData.full_name || '',\n  whatsapp_number: actionData.phone || stateMachineData.phone,\n  business_name: actionData.business_name || '',\n  city_state: actionData.city_state || '',\n  industry: actionData.industry || '',\n  years_operating: actionData.years_operating || 0,\n  membership_tier: 'FREE',\n  status: 'Pending Admin Review',\n  rifahmart_url,\n  rifahmart_status: 'Published',\n  registration_date: new Date().toISOString().replace('T', ' ').substring(0, 19)\n};\n\nreturn [{\n  json: {\n    payload,\n    rifah_id,\n    rifahmart_url,\n    phone: stateMachineData.phone,\n    business_name: actionData.business_name || '',\n    city_state: actionData.city_state || '',\n    industry: actionData.industry || '',\n    full_name: actionData.full_name || ''\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "node-create-free",
+      "name": "Create Free Member in ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2450,
+        720
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://backend:8000/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-send-free-confirm",
+      "name": "Send Free Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2700,
+        720
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Build Free Member Data').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"\u2705 *Registration Complete!*\\n\\n\ud83e\udeaa Your RIFAH ID: *{{ $('Build Free Member Data').item.json.rifah_id }}*\\n\\n\u2713 Profile created\\n\u2713 RifahMart page: {{ $('Build Free Member Data').item.json.rifahmart_url }}\\n\u2713 Admin will add you to 2-3 relevant WhatsApp groups within 24 hours\\n\\nYou'll receive a notification once added to groups.\\n\\n_Welcome to RIFAH Connect!_ \ud83c\udf89\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "meta-auth-cred",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "id": "node-notify-admin-free",
+      "name": "Notify Admin Free",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2700,
+        840
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"918147317832\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"\ud83d\udd14 *New FREE Registration*\\n\\n\ud83e\udeaa ID: {{ $('Build Free Member Data').item.json.rifah_id }}\\n\ud83d\udc64 {{ $('Build Free Member Data').item.json.full_name }}\\n\ud83c\udfe2 {{ $('Build Free Member Data').item.json.business_name }}\\n\ud83d\udccd {{ $('Build Free Member Data').item.json.city_state }}\\n\ud83c\udfed {{ $('Build Free Member Data').item.json.industry }}\\n\ud83d\udcf1 {{ $('Build Free Member Data').item.json.phone }}\\n\\n\u26a1 Action Required (SLA: 24h):\\nAdd to 2-3 relevant WhatsApp groups\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "meta-auth-cred",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "id": "node-count-premium",
+      "name": "Get Premium Member Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1950,
+        980
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=http://backend:8000/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "[[\"membership_tier\",\"=\",\"PREMIUM\"]]"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\"]"
+            },
+            {
+              "name": "limit_page_length",
+              "value": "999"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-build-premium",
+      "name": "Build Premium Member Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        980
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// Generate RIFAH ID and build member payload for PREMIUM pending\nconst stateMachineData = $('State Machine').first().json;\nconst countResult = $input.first().json;\n\nconst actionData = JSON.parse(stateMachineData.actionData || '{}');\nconst existingCount = countResult?.data?.length || 0;\nconst newIndex = String(existingCount + 1).padStart(4, '0');\nconst year = new Date().getFullYear();\nconst rifah_id = `RIF-PREM-${year}-${newIndex}`;\n\nconst slug = (actionData.business_name || 'business')\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s]/g, '')\n  .replace(/\\s+/g, '-')\n  .substring(0, 50);\n\nconst rifahmart_url = `https://rifahmart.com/${rifah_id}/${slug}`;\nconst dashboard_username = actionData.phone || stateMachineData.phone;\nconst dashboard_password = 'RIFAH' + Math.random().toString(36).substring(2, 8).toUpperCase();\n\nconst payload = {\n  doctype: 'RIFAH Member',\n  rifah_id,\n  full_name: actionData.full_name || '',\n  whatsapp_number: actionData.phone || stateMachineData.phone,\n  business_name: actionData.business_name || '',\n  city_state: actionData.city_state || '',\n  industry: actionData.industry || '',\n  years_operating: actionData.years_operating || 0,\n  membership_tier: 'PREMIUM',\n  status: 'Payment Uploaded',\n  rifahmart_url,\n  rifahmart_status: 'Featured',\n  dashboard_username,\n  dashboard_password,\n  payment_transaction_id: actionData.payment_transaction_id || '',\n  registration_date: new Date().toISOString().replace('T', ' ').substring(0, 19)\n};\n\nreturn [{\n  json: {\n    payload,\n    rifah_id,\n    rifahmart_url,\n    dashboard_username,\n    dashboard_password,\n    phone: stateMachineData.phone,\n    business_name: actionData.business_name || '',\n    city_state: actionData.city_state || '',\n    industry: actionData.industry || '',\n    full_name: actionData.full_name || ''\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "node-create-premium",
+      "name": "Create Premium Pending in ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2450,
+        980
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://backend:8000/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "id": "node-notify-admin-premium",
+      "name": "Notify Admin Premium",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2700,
+        980
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"918147317832\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"\ud83d\udd34 *URGENT: Premium Payment Verification*\\n\\n\ud83e\udeaa ID: {{ $('Build Premium Member Data').item.json.rifah_id }}\\n\ud83d\udc64 {{ $('Build Premium Member Data').item.json.full_name }}\\n\ud83c\udfe2 {{ $('Build Premium Member Data').item.json.business_name }}\\n\ud83d\udccd {{ $('Build Premium Member Data').item.json.city_state }}\\n\ud83d\udcf1 {{ $('Build Premium Member Data').item.json.phone }}\\n\\n\u26a1 Action Required (SLA: 2h):\\n1. Verify payment in ERPNext\\n2. Change status to Active Premium\\n3. Add to 5-10 WhatsApp groups\\n\\nERPNext: http://backend:8000\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "meta-auth-cred",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "id": "node-get-media-url",
+      "name": "Get Media URL from Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1950,
+        1160
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v18.0/{{ $('State Machine').item.json.mediaId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "meta-auth-cred",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "id": "node-download-media",
+      "name": "Download Media from Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        1160
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "meta-auth-cred",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "id": "node-upload-erpnext",
+      "name": "Upload File to ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2450,
+        1160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://backend:8000/api/method/upload_file",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ $binary.data }}",
+              "parameterType": "formBinaryData"
+            },
+            {
+              "name": "is_private",
+              "value": "0"
+            },
+            {
+              "name": "folder",
+              "value": "Home/Attachments"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "erpnext-auth-cred",
+          "name": "ERPNext API Auth"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook GET": {
+      "main": [
+        [
+          {
+            "node": "Extract Verification Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Verification Challenge": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook Verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Webhook POST": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "IF Valid Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid Message": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Member",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "State Machine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Member": {
+      "main": [
+        [
+          {
+            "node": "State Machine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State Machine": {
+      "main": [
+        [
+          {
+            "node": "IF Should Send Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Session Upsert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Should Send Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Session Upsert": {
+      "main": [
+        [
+          {
+            "node": "IF New Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF New Session": {
+      "main": [
+        [
+          {
+            "node": "Create Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [
+          {
+            "node": "Get Free Member Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Premium Member Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Media URL from Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Free Member Count": {
+      "main": [
+        [
+          {
+            "node": "Build Free Member Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Free Member Data": {
+      "main": [
+        [
+          {
+            "node": "Create Free Member in ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Free Member in ERPNext": {
+      "main": [
+        [
+          {
+            "node": "Send Free Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Admin Free",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Premium Member Count": {
+      "main": [
+        [
+          {
+            "node": "Build Premium Member Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Premium Member Data": {
+      "main": [
+        [
+          {
+            "node": "Create Premium Pending in ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Premium Pending in ERPNext": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Premium",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Media URL from Meta": {
+      "main": [
+        [
+          {
+            "node": "Download Media from Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Media from Meta": {
+      "main": [
+        [
+          {
+            "node": "Upload File to ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "RIFAH Connect"
+    },
+    {
+      "name": "WhatsApp"
+    }
+  ],
+  "pinData": {}
+}

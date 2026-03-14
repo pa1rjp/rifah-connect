@@ -1,0 +1,51 @@
+{
+  "actions": [],
+  "creation": "2024-01-01 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "file_name",
+    "file_type",
+    "file_attachment",
+    "meta_media_id",
+    "uploaded_on"
+  ],
+  "fields": [
+    {
+      "fieldname": "file_name",
+      "fieldtype": "Data",
+      "label": "File Name",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "file_type",
+      "fieldtype": "Select",
+      "label": "File Type",
+      "options": "\nPDF\nJPG\nPNG\nOther",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "file_attachment",
+      "fieldtype": "Attach",
+      "label": "File",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "meta_media_id",
+      "fieldtype": "Data",
+      "label": "Meta Media ID"
+    },
+    {
+      "fieldname": "uploaded_on",
+      "fieldtype": "Datetime",
+      "label": "Uploaded On"
+    }
+  ],
+  "istable": 1,
+  "modified": "2024-01-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Core",
+  "name": "RIFAH Product Material",
+  "owner": "Administrator",
+  "permissions": []
+}

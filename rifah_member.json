@@ -1,0 +1,283 @@
+{
+  "actions": [],
+  "autoname": "field:rifah_id",
+  "creation": "2024-01-01 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "rifah_id",
+    "membership_section",
+    "membership_tier",
+    "status",
+    "registration_date",
+    "column_break_1",
+    "personal_info_section",
+    "full_name",
+    "whatsapp_number",
+    "business_section",
+    "business_name",
+    "city_state",
+    "industry",
+    "years_operating",
+    "rifahmart_section",
+    "rifahmart_url",
+    "rifahmart_status",
+    "column_break_2",
+    "dashboard_username",
+    "dashboard_password",
+    "documents_section",
+    "gst_document",
+    "gst_document_type",
+    "payment_section",
+    "payment_screenshot",
+    "payment_transaction_id",
+    "payment_verified_on",
+    "payment_verified_by",
+    "product_materials_section",
+    "product_materials",
+    "admin_section",
+    "admin_notes",
+    "groups_assigned",
+    "groups_assigned_on"
+  ],
+  "fields": [
+    {
+      "fieldname": "rifah_id",
+      "fieldtype": "Data",
+      "label": "RIFAH ID",
+      "unique": 1,
+      "reqd": 1,
+      "bold": 1,
+      "in_list_view": 1,
+      "read_only": 0
+    },
+    {
+      "fieldname": "membership_section",
+      "fieldtype": "Section Break",
+      "label": "Membership"
+    },
+    {
+      "fieldname": "membership_tier",
+      "fieldtype": "Select",
+      "label": "Membership Tier",
+      "options": "\nFREE\nPREMIUM",
+      "reqd": 1,
+      "in_list_view": 1,
+      "bold": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "\nPending Admin Review\nActive Free\nPending Payment\nPayment Uploaded\nActive Premium\nSuspended",
+      "reqd": 1,
+      "in_list_view": 1,
+      "bold": 1
+    },
+    {
+      "fieldname": "registration_date",
+      "fieldtype": "Datetime",
+      "label": "Registration Date",
+      "default": "now"
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "personal_info_section",
+      "fieldtype": "Section Break",
+      "label": "Personal Information"
+    },
+    {
+      "fieldname": "full_name",
+      "fieldtype": "Data",
+      "label": "Full Name",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "whatsapp_number",
+      "fieldtype": "Data",
+      "label": "WhatsApp Number",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "business_section",
+      "fieldtype": "Section Break",
+      "label": "Business Information"
+    },
+    {
+      "fieldname": "business_name",
+      "fieldtype": "Data",
+      "label": "Business Name",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "city_state",
+      "fieldtype": "Data",
+      "label": "City & State",
+      "reqd": 1
+    },
+    {
+      "fieldname": "industry",
+      "fieldtype": "Data",
+      "label": "Industry / Business Type",
+      "reqd": 1
+    },
+    {
+      "fieldname": "years_operating",
+      "fieldtype": "Int",
+      "label": "Years Operating"
+    },
+    {
+      "fieldname": "rifahmart_section",
+      "fieldtype": "Section Break",
+      "label": "RifahMart Page"
+    },
+    {
+      "fieldname": "rifahmart_url",
+      "fieldtype": "Data",
+      "label": "RifahMart URL",
+      "read_only": 1
+    },
+    {
+      "fieldname": "rifahmart_status",
+      "fieldtype": "Select",
+      "label": "RifahMart Status",
+      "options": "\nNot Created\nPublished\nFeatured\nSuspended",
+      "default": "Not Created"
+    },
+    {
+      "fieldname": "column_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "dashboard_username",
+      "fieldtype": "Data",
+      "label": "Dashboard Username",
+      "read_only": 1
+    },
+    {
+      "fieldname": "dashboard_password",
+      "fieldtype": "Password",
+      "label": "Dashboard Password",
+      "read_only": 1
+    },
+    {
+      "fieldname": "documents_section",
+      "fieldtype": "Section Break",
+      "label": "Verification Documents"
+    },
+    {
+      "fieldname": "gst_document",
+      "fieldtype": "Attach",
+      "label": "GST / Udyam Document"
+    },
+    {
+      "fieldname": "gst_document_type",
+      "fieldtype": "Select",
+      "label": "Document Type",
+      "options": "\nGST Certificate\nUdyam Registration\nOther"
+    },
+    {
+      "fieldname": "payment_section",
+      "fieldtype": "Section Break",
+      "label": "Payment (Premium)"
+    },
+    {
+      "fieldname": "payment_screenshot",
+      "fieldtype": "Attach",
+      "label": "Payment Screenshot"
+    },
+    {
+      "fieldname": "payment_transaction_id",
+      "fieldtype": "Data",
+      "label": "Payment Transaction ID"
+    },
+    {
+      "fieldname": "payment_verified_on",
+      "fieldtype": "Datetime",
+      "label": "Payment Verified On"
+    },
+    {
+      "fieldname": "payment_verified_by",
+      "fieldtype": "Link",
+      "label": "Payment Verified By",
+      "options": "User"
+    },
+    {
+      "fieldname": "product_materials_section",
+      "fieldtype": "Section Break",
+      "label": "Product Materials"
+    },
+    {
+      "fieldname": "product_materials",
+      "fieldtype": "Table",
+      "label": "Product Materials",
+      "options": "RIFAH Product Material"
+    },
+    {
+      "fieldname": "admin_section",
+      "fieldtype": "Section Break",
+      "label": "Admin Notes"
+    },
+    {
+      "fieldname": "admin_notes",
+      "fieldtype": "Text",
+      "label": "Admin Notes"
+    },
+    {
+      "fieldname": "groups_assigned",
+      "fieldtype": "Text",
+      "label": "WhatsApp Groups Assigned"
+    },
+    {
+      "fieldname": "groups_assigned_on",
+      "fieldtype": "Datetime",
+      "label": "Groups Assigned On"
+    }
+  ],
+  "links": [],
+  "modified": "2024-01-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Core",
+  "name": "RIFAH Member",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "submit": 0,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "All",
+      "share": 0,
+      "submit": 0,
+      "write": 1
+    }
+  ],
+  "sort_field": "registration_date",
+  "sort_order": "DESC",
+  "title_field": "business_name",
+  "track_changes": 1
+}
