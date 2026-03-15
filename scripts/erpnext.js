@@ -100,7 +100,7 @@ async function deleteSession(phone) {
 
 // ── Members ───────────────────────────────────────────────────────────────────
 async function getMember(phone) {
-  const fields  = enc(['name', 'rifah_id', 'full_name', 'whatsapp_number', 'membership_tier', 'status', 'rifahmart_url', 'dashboard_password']);
+  const fields  = enc(['name', 'rifah_id', 'full_name', 'whatsapp_number', 'membership_tier', 'status', 'rifahmart_url']);
   const filters = enc([['whatsapp_number', '=', phone]]);
   const r = await request(`${BASE}/api/resource/RIFAH Member?filters=${filters}&fields=${fields}`);
   return r.body?.data?.[0] || null;
