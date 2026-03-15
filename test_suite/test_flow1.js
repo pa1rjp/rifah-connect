@@ -623,8 +623,9 @@ async function testExistingUserFlow() {
       : fail('is_update flag not set', `Got: ${data.is_update}`);
   }
 
-  // Invalid option at EXISTING_CHOICE
+  // Invalid option at EXISTING_CHOICE — reset session first so we start fresh
   info('Step 5: Send invalid option "9" at EXISTING_CHOICE');
+  await erp.deleteSession(phone);
   await sendMessage(phone, 'Hi');
   await waitForStep(phone, 'EXISTING_CHOICE');
   await sendMessage(phone, '9');
