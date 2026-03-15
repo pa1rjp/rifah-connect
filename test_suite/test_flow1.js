@@ -214,6 +214,26 @@ async function waitForStep(phone, expectedStep, maxWait = 8000) {
   return false;
 }
 
+// ── WAIT FOR PRODUCT MATERIALS COUNT ─────────────────────────────────────────
+// product uploads keep current_step at PRODUCT_UPLOAD, so waitForStep returns
+// immediately with stale data. Poll session_data directly instead.
+async function waitForProductMaterials(phone, expectedCount, maxWait = 10000) {
+  const interval = 500;
+  let elapsed = 0;
+  while (elapsed < maxWait) {
+    await delay(interval);
+    elapsed += interval;
+    const session = await getSession(phone);
+    if (!session) continue;
+    const detail = await getSessionDetail(session.name);
+    try {
+      const data = JSON.parse(detail?.session_data || '{}');
+      if (Array.isArray(data.product_materials) && data.product_materials.length >= expectedCount) return data;
+    } catch {}
+  }
+  return null;
+}
+
 // ── HELPER: Walk through Q1–Q6 to DOC_UPLOAD ─────────────────────────────────
 async function walkToDocUpload(phone) {
   const steps = [
@@ -501,42 +521,36 @@ async function testProductUploadFlow() {
       : fail('doc_media_id not saved', `Got: ${data.doc_media_id}`);
   }
 
-  // Upload first product image → stays at PRODUCT_UPLOAD (uses download_doc action now)
+  // Upload first product image → stays at PRODUCT_UPLOAD
   info('Uploading product image 1 → expect stay at PRODUCT_UPLOAD');
   await sendMediaMessage(phone, 'image', 'fake_prod_img_001', null, 'image/jpeg');
-  const s2 = await waitForStep(phone, 'PRODUCT_UPLOAD', 10000);
-  s2 ? pass('Product file 1 accepted, stays at PRODUCT_UPLOAD') : fail('Unexpected step after product file 1');
+  const data2 = await waitForProductMaterials(phone, 1);
+  data2
+    ? pass('Product file 1 accepted, stays at PRODUCT_UPLOAD')
+    : fail('Unexpected step after product file 1');
 
   // Verify product_materials accumulated
   info('Verifying product_materials[0] saved...');
-  const sess2 = await getSession(phone);
-  if (sess2) {
-    const detail = await getSessionDetail(sess2.name);
-    const data = JSON.parse(detail?.session_data || '{}');
-    Array.isArray(data.product_materials) && data.product_materials.length === 1
-      ? pass('product_materials has 1 entry after first upload')
-      : fail('product_materials not saved correctly', `Got: ${JSON.stringify(data.product_materials)}`);
+  Array.isArray(data2?.product_materials) && data2.product_materials.length === 1
+    ? pass('product_materials has 1 entry after first upload')
+    : fail('product_materials not saved correctly', `Got: ${JSON.stringify(data2?.product_materials)}`);
 
-    data.product_materials?.[0]?.media_id === 'fake_prod_img_001'
-      ? pass('product_materials[0].media_id correct')
-      : fail('product_materials[0].media_id wrong', `Got: ${data.product_materials?.[0]?.media_id}`);
-  }
+  data2?.product_materials?.[0]?.media_id === 'fake_prod_img_001'
+    ? pass('product_materials[0].media_id correct')
+    : fail('product_materials[0].media_id wrong', `Got: ${data2?.product_materials?.[0]?.media_id}`);
 
   // Upload second product file → still PRODUCT_UPLOAD
   info('Uploading product file 2 → expect stay at PRODUCT_UPLOAD');
   await sendMediaMessage(phone, 'document', 'fake_prod_doc_002', 'catalog.pdf', 'application/pdf');
-  const s3 = await waitForStep(phone, 'PRODUCT_UPLOAD', 10000);
-  s3 ? pass('Product file 2 accepted, stays at PRODUCT_UPLOAD') : fail('Unexpected step after product file 2');
+  const data3 = await waitForProductMaterials(phone, 2);
+  data3
+    ? pass('Product file 2 accepted, stays at PRODUCT_UPLOAD')
+    : fail('Unexpected step after product file 2');
 
   // Verify 2 materials accumulated
-  const sess3 = await getSession(phone);
-  if (sess3) {
-    const detail = await getSessionDetail(sess3.name);
-    const data = JSON.parse(detail?.session_data || '{}');
-    data.product_materials?.length === 2
-      ? pass('product_materials has 2 entries after second upload')
-      : fail('Expected 2 product_materials', `Got: ${data.product_materials?.length}`);
-  }
+  data3?.product_materials?.length === 2
+    ? pass('product_materials has 2 entries after second upload')
+    : fail('Expected 2 product_materials', `Got: ${data3?.product_materials?.length}`);
 
   // Send DONE → TIER_SELECT
   info('Send "DONE" → expect TIER_SELECT');
