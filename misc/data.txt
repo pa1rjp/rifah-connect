@@ -32,3 +32,5 @@ Bearer EAARjcCj3HHIBQ1wUBNzZAKigFrSCcSpIchNR1NaGZBzd42L3anlkTmR2ZABzepaLyWZC2EFZ
 
 https://developers.facebook.com/apps/1235233281612914/use_cases/customize/wa-dev-console/?use_case_enum=WHATSAPP_BUSINESS_MESSAGING&product_route=whatsapp-business&business_id=2158927178242149&selected_tab=wa-dev-console
 https://business.facebook.com/latest/settings/system_users?business_id=2158927178242149&selected_user_id=61582372778051
+
+ngrok http --domain=askew-unmellow-in.ngrok-free.dev 5678
