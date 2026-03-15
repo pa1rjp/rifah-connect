@@ -17,22 +17,14 @@
 
 const https = require('https');
 const http = require('http');
+const erp = require('../scripts/erpnext');
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const CONFIG = {
   n8n_webhook: 'http://localhost:5678/webhook/whatsapp-webhook',
-  erpnext_url: 'http://localhost:8080',
-  erpnext_api_key: '0e4bdd6485daf14',
-  erpnext_api_secret: 'f7219377d052ff5',
-  meta_phone_number_id: '1051021614753488',
+  meta_phone_number_id: process.env.META_PHONE_NUMBER_ID || '1051021614753488',
   delay_ms: 1500,
-  test_phones: {
-    free:     '919000000001',
-    premium:  '919000000002',
-    existing: '919000000003',
-    edge:     '919000000004',
-    product:  '919000000005',
-  }
+  test_phones: erp.TEST_PHONES,
 };
 
 // ── COLOURS ───────────────────────────────────────────────────────────────────
@@ -200,58 +192,12 @@ async function sendMediaMessage(phone, mediaType, mediaId, filename, mimeType, n
 }
 
 // ── ERPNEXT API ───────────────────────────────────────────────────────────────
-const erpnextHeaders = {
-  'Authorization': `token ${CONFIG.erpnext_api_key}:${CONFIG.erpnext_api_secret}`,
-  'Content-Type': 'application/json',
-  'Host': 'rifah.localhost'
-};
-
-async function getSession(phone) {
-  const filters = encodeURIComponent(JSON.stringify([["phone_number","=",phone]]));
-  const fields  = encodeURIComponent(JSON.stringify(["name","phone_number","current_step","status"]));
-  const url = `${CONFIG.erpnext_url}/api/resource/RIFAH Session?filters=${filters}&fields=${fields}`;
-  const res = await request(url, { headers: erpnextHeaders });
-  return res.body?.data?.[0] || null;
-}
-
-async function getSessionDetail(name) {
-  const url = `${CONFIG.erpnext_url}/api/resource/RIFAH Session/${name}`;
-  const res = await request(url, { headers: erpnextHeaders });
-  return res.body?.data || null;
-}
-
-async function getMember(phone) {
-  const url = `${CONFIG.erpnext_url}/api/resource/RIFAH Member?filters=${encodeURIComponent(JSON.stringify([["whatsapp_number","=",phone]]))}`;
-  const res = await request(url, { headers: erpnextHeaders });
-  return res.body?.data?.[0] || null;
-}
-
-async function getMemberDetail(name) {
-  const url = `${CONFIG.erpnext_url}/api/resource/RIFAH Member/${name}`;
-  const res = await request(url, { headers: erpnextHeaders });
-  return res.body?.data || null;
-}
-
-async function deleteSession(phone) {
-  const session = await getSession(phone);
-  if (session) {
-    await request(`${CONFIG.erpnext_url}/api/resource/RIFAH Session/${session.name}`,
-      { method: 'DELETE', headers: erpnextHeaders });
-  }
-}
-
-async function deleteMember(phone) {
-  const member = await getMember(phone);
-  if (member) {
-    await request(`${CONFIG.erpnext_url}/api/resource/RIFAH Member/${member.name}`,
-      { method: 'DELETE', headers: erpnextHeaders });
-  }
-}
-
-async function cleanPhone(phone) {
-  await deleteSession(phone);
-  await deleteMember(phone);
-}
+// ERPNext helpers — delegated to shared module
+const getSession       = erp.getSession;
+const getSessionDetail = erp.getSessionDetail;
+const getMember        = erp.getMember;
+const getMemberDetail  = erp.getMemberDetail;
+const cleanPhone       = erp.cleanPhone;
 
 // ── WAIT FOR STEP ─────────────────────────────────────────────────────────────
 async function waitForStep(phone, expectedStep, maxWait = 8000) {
@@ -634,11 +580,7 @@ async function testExistingUserFlow() {
     rifahmart_status: 'Published'
   };
 
-  const createRes = await request(
-    `${CONFIG.erpnext_url}/api/resource/RIFAH Member`,
-    { method: 'POST', headers: erpnextHeaders },
-    JSON.stringify(memberPayload)
-  );
+  const createRes = await erp.createMember(memberPayload);
 
   createRes.status === 200
     ? pass('Pre-existing member created in ERPNext')
@@ -779,36 +721,21 @@ async function testERPNextConnectivity() {
 
   info('Checking ERPNext is reachable...');
   try {
-    const res = await request(`${CONFIG.erpnext_url}/api/method/frappe.auth.get_logged_user`,
-      { headers: erpnextHeaders });
-    res.status === 200
-      ? pass(`ERPNext reachable — logged in as: ${res.body?.message}`)
-      : fail('ERPNext returned non-200', `Status: ${res.status}`);
-  } catch (e) {
-    fail('ERPNext not reachable', e.message);
-  }
+    const user = await erp.whoami();
+    user ? pass(`ERPNext reachable — logged in as: ${user}`) : fail('ERPNext not reachable');
+  } catch (e) { fail('ERPNext not reachable', e.message); }
 
   info('Checking RIFAH Member doctype exists...');
   try {
-    const res = await request(`${CONFIG.erpnext_url}/api/resource/RIFAH Member?limit=1`,
-      { headers: erpnextHeaders });
-    res.status === 200
-      ? pass('RIFAH Member doctype accessible')
-      : fail('RIFAH Member doctype not found', `Status: ${res.status}`);
-  } catch (e) {
-    fail('RIFAH Member doctype error', e.message);
-  }
+    const list = await erp.listMembers(1);
+    Array.isArray(list) ? pass('RIFAH Member doctype accessible') : fail('RIFAH Member doctype not found');
+  } catch (e) { fail('RIFAH Member doctype error', e.message); }
 
   info('Checking RIFAH Session doctype exists...');
   try {
-    const res = await request(`${CONFIG.erpnext_url}/api/resource/RIFAH Session?limit=1`,
-      { headers: erpnextHeaders });
-    res.status === 200
-      ? pass('RIFAH Session doctype accessible')
-      : fail('RIFAH Session doctype not found', `Status: ${res.status}`);
-  } catch (e) {
-    fail('RIFAH Session doctype error', e.message);
-  }
+    const list = await erp.listSessions(1);
+    Array.isArray(list) ? pass('RIFAH Session doctype accessible') : fail('RIFAH Session doctype not found');
+  } catch (e) { fail('RIFAH Session doctype error', e.message); }
 
   // Verify token uses env var fallback
   info('Checking n8n webhook verification endpoint (tests env var fallback token)...');
@@ -830,10 +757,7 @@ async function testERPNextConnectivity() {
 // ══════════════════════════════════════════════════════════════════════════════
 async function cleanAll() {
   section('Cleaning all test data');
-  for (const [name, phone] of Object.entries(CONFIG.test_phones)) {
-    await cleanPhone(phone);
-    info(`Cleaned: ${name} (${phone})`);
-  }
+  await erp.cleanTestPhones();
   console.log(c.green('\n✓ All test data cleaned\n'));
 }
 
@@ -847,10 +771,7 @@ async function main() {
   console.log(c.bold('║   RIFAH Connect — Flow 1 Test Suite   ║'));
   console.log(c.bold('╚════════════════════════════════════════╝\n'));
 
-  if (CONFIG.erpnext_api_key === 'YOUR_API_KEY') {
-    console.log(c.red('⚠️  Fill in CONFIG values at the top of this file before running.\n'));
-    process.exit(1);
-  }
+  // credentials come from scripts/erpnext.js (reads .env)
 
   if (args.includes('--clean')) {
     await cleanAll();
