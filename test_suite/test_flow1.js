@@ -207,7 +207,9 @@ const erpnextHeaders = {
 };
 
 async function getSession(phone) {
-  const url = `${CONFIG.erpnext_url}/api/resource/RIFAH Session?filters=${encodeURIComponent(JSON.stringify([["phone_number","=",phone]]))}`;
+  const filters = encodeURIComponent(JSON.stringify([["phone_number","=",phone]]));
+  const fields  = encodeURIComponent(JSON.stringify(["name","phone_number","current_step","status"]));
+  const url = `${CONFIG.erpnext_url}/api/resource/RIFAH Session?filters=${filters}&fields=${fields}`;
   const res = await request(url, { headers: erpnextHeaders });
   return res.body?.data?.[0] || null;
 }
