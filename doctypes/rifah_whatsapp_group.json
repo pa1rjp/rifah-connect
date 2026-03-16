@@ -1,0 +1,136 @@
+{
+  "actions": [],
+  "autoname": "field:group_id",
+  "creation": "2026-01-01 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "group_id",
+    "group_name",
+    "group_jid",
+    "column_break_1",
+    "is_active",
+    "active_members",
+    "created_at",
+    "location_section",
+    "city",
+    "state",
+    "column_break_2",
+    "industry",
+    "lead_types",
+    "description_field"
+  ],
+  "fields": [
+    {
+      "fieldname": "group_id",
+      "fieldtype": "Data",
+      "label": "Group ID",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "group_name",
+      "fieldtype": "Data",
+      "label": "Group Name",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "group_jid",
+      "fieldtype": "Data",
+      "label": "Group JID",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "label": "Is Active",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "active_members",
+      "fieldtype": "Int",
+      "label": "Active Members",
+      "default": "0"
+    },
+    {
+      "fieldname": "created_at",
+      "fieldtype": "Datetime",
+      "label": "Created At"
+    },
+    {
+      "fieldname": "location_section",
+      "fieldtype": "Section Break",
+      "label": "Location & Industry"
+    },
+    {
+      "fieldname": "city",
+      "fieldtype": "Data",
+      "label": "City",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "state",
+      "fieldtype": "Data",
+      "label": "State",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "column_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "industry",
+      "fieldtype": "Data",
+      "label": "Industry",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "lead_types",
+      "fieldtype": "Long Text",
+      "label": "Lead Types Allowed (JSON)"
+    },
+    {
+      "fieldname": "description_field",
+      "fieldtype": "Small Text",
+      "label": "Description"
+    }
+  ],
+  "modified": "2026-01-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Core",
+  "name": "RIFAH WhatsApp Group",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "report": 1,
+      "role": "All",
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "track_changes": 0
+}

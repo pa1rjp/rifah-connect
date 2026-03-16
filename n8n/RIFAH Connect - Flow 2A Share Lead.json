@@ -1,0 +1,1539 @@
+{
+  "name": "RIFAH Connect - Flow 2A Share Lead",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "flow2a-webhook",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "f2a-node-01",
+      "name": "WhatsApp Webhook POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "rifah-wa-flow2a-post-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst entry = (body.entry || [])[0] || {};\nconst change = (entry.changes || [])[0] || {};\nconst value = change.value || {};\nconst messages = value.messages || [];\n\nif (!messages.length) {\n  return [{ json: { skip: true } }];\n}\n\nconst msg = messages[0];\nconst from = msg.from;\nconst msgId = msg.id;\nconst timestamp = msg.timestamp;\nconst type = msg.type;\n\nlet text = '';\nlet image_id = null;\nlet document_id = null;\nlet document_filename = '';\nlet document_mime = '';\n\nif (type === 'text') {\n  text = msg.text?.body || '';\n} else if (type === 'image') {\n  image_id = msg.image?.id;\n  text = msg.image?.caption || '';\n} else if (type === 'document') {\n  document_id = msg.document?.id;\n  document_filename = msg.document?.filename || 'document';\n  document_mime = msg.document?.mime_type || 'application/octet-stream';\n  text = msg.document?.caption || '';\n} else if (type === 'button') {\n  text = msg.button?.text || '';\n}\n\nreturn [{\n  json: { from, msgId, timestamp, type, text, image_id, document_id, document_filename, document_mime, skip: false }\n}];\n"
+      },
+      "id": "f2a-node-02",
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f2a-c1",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "f2a-c1b",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "f2a-node-03",
+      "name": "IF Valid Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"phone_number\",\"=\",$('Extract Message').item.json.from]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"phone_number\",\"current_step\",\"session_data\",\"status\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-04",
+      "name": "Get Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        600,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"whatsapp_number\",\"=\",$('Extract Message').item.json.from]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"full_name\",\"business_name\",\"city_state\",\"industry\",\"membership_tier\",\"status\",\"whatsapp_number\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-05",
+      "name": "Get Member",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        600,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "f2a-node-06",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// RIFAH Connect — Flow 2A State Machine (Lead & Vendor)\n// ============================================================\nconst msgNode = $('Extract Message').first().json;\nconst sessionRaw = $('Get Session').first().json;\nconst memberRaw = $('Get Member').first().json;\n\nconst phone = msgNode.from;\nconst msgType = msgNode.type || 'text';\nconst rawText = msgNode.text || '';\nconst msgText = rawText.trim().toUpperCase();\nconst rawTextOriginal = rawText.trim();\n\n// Parse session\nconst sessionDocs = sessionRaw?.data || [];\nconst sessionDoc = sessionDocs.length > 0 ? sessionDocs[0] : {};\nlet currentStep = sessionDoc.current_step || 'IDLE';\nlet sessionData = {};\ntry { sessionData = JSON.parse(sessionDoc.session_data || '{}'); } catch(e) {}\nconst sessionName = sessionDoc.name || null;\n\n// Parse member\nconst memberDocs = memberRaw?.data || [];\nconst memberExists = memberDocs.length > 0;\nconst member = memberExists ? memberDocs[0] : null;\n\nlet responseMsg = '';\nlet nextStep = currentStep;\nlet action = 'none';\nlet actionData = {};\n\n// ─── LEAD ID PATTERN DETECTION ───────────────────────────────\nconst leadPattern = /^LEAD-(FREE|PREM)-\\d{4}-\\d+$/i;\nconst isLeadId = leadPattern.test(rawTextOriginal.trim());\n\n// ─── ROUTE ────────────────────────────────────────────────────\nconst leadSteps = ['LEAD_TYPE','LEAD_DESC','LEAD_LOC','LEAD_URGENCY','LEAD_BUDGET','LEAD_CREATE'];\nconst aiSteps = ['AI_Q1','AI_Q2','AI_Q3','AI_Q4','AI_Q5','AI_Q6'];\nconst vendorSteps = ['VENDOR_INTRO','VENDOR_Q1','VENDOR_Q2','VENDOR_Q3','VENDOR_Q4','VENDOR_Q5','VENDOR_Q6','VENDOR_SCORE','VENDOR_SUBMIT'];\nconst flow2Steps = [...leadSteps, ...aiSteps, ...vendorSteps];\n\nconst isFlow2Session = flow2Steps.includes(currentStep);\n\nif (!isFlow2Session && !isLeadId) {\n  // Not our flow — skip (let Flow 1 handle)\n  return [{ json: { skip: true, phone, currentStep } }];\n}\n\n// ─── VENDOR LEAD LINK DETECTION ───────────────────────────────\nif (isLeadId && !isFlow2Session) {\n  action = 'vendor_lead_lookup';\n  actionData = { lead_id: rawTextOriginal.trim(), vendor_phone: phone };\n  nextStep = 'VENDOR_INTRO';\n  sessionData = { phone, lead_id: rawTextOriginal.trim(), flow: 'vendor' };\n  responseMsg = '⏳ Looking up lead details...';\n  return [{ json: { phone, responseMsg, nextStep, action, actionData: JSON.stringify(actionData), sessionData: JSON.stringify(sessionData), sessionName, currentStep, shouldSendMsg: true, skip: false } }];\n}\n\n// ─── STEP MACHINE ─────────────────────────────────────────────\nswitch (currentStep) {\n\n  // ── BUYER FLOW ──────────────────────────────────────────────\n\n  case 'LEAD_TYPE': {\n    const typeMap = { '1':'BUY', '2':'SELL', '3':'SERVICE NEED', '4':'SERVICE OFFER',\n                      'BUY':'BUY', 'SELL':'SELL', 'SERVICE NEED':'SERVICE NEED', 'SERVICE OFFER':'SERVICE OFFER' };\n    const type = typeMap[msgText] || typeMap[rawTextOriginal.toUpperCase().trim()];\n    if (type) {\n      sessionData.lead_type = type;\n      const emoji = { BUY:'🛒', SELL:'💰', 'SERVICE NEED':'🔧', 'SERVICE OFFER':'🛠️' }[type];\n      responseMsg = `✅ Got it! You selected: *${emoji} ${type}*\\n\\n📝 *Please describe what you need/offer:*\\n_(Minimum 10 words)_\\n\\n*Example:*\\n_\"Need 5000 plastic bottles, 500ml capacity, food-grade PET material for juice packaging business in Pune\"_`;\n      nextStep = 'LEAD_DESC';\n    } else {\n      responseMsg = `📋 *Share Your Requirement*\\n\\nWhat type of requirement do you have?\\n\\n1️⃣ *BUY* - I need to purchase\\n2️⃣ *SELL* - I have products to sell\\n3️⃣ *SERVICE NEED* - I need a service\\n4️⃣ *SERVICE OFFER* - I provide a service\\n\\n_Reply: BUY, SELL, SERVICE NEED, SERVICE OFFER or 1-4_`;\n    }\n    break;\n  }\n\n  case 'LEAD_DESC': {\n    const wordCount = rawTextOriginal.trim().split(/\\s+/).filter(w => w.length > 0).length;\n    if (wordCount >= 10) {\n      sessionData.lead_description = rawTextOriginal.trim();\n      responseMsg = `✅ Got it!\\n\\n📍 *Which city/cities are you looking for?*\\n\\n*Examples:*\\n• Single city: \"Pune\"\\n• Multiple: \"Pune, Mumbai, Nashik\"\\n• State-wide: \"Maharashtra\"\\n• Pan-India: \"All India\"\\n\\n_Please specify location:_`;\n      nextStep = 'LEAD_LOC';\n    } else {\n      responseMsg = `⚠️ Please provide more details *(minimum 10 words required)*\\n\\nYou provided ${wordCount} word${wordCount === 1 ? '' : 's'}. Please describe your requirement in more detail.`;\n    }\n    break;\n  }\n\n  case 'LEAD_LOC': {\n    if (rawTextOriginal.trim().length >= 2) {\n      sessionData.lead_location = rawTextOriginal.trim();\n      responseMsg = `✅ Got it!\\n\\n⏰ *How urgent is this requirement?*\\n\\n1️⃣ 🔴 *URGENT* - Need immediately\\n2️⃣ 📅 *THIS WEEK* - Within 7 days\\n3️⃣ 📆 *THIS MONTH* - Within 30 days\\n4️⃣ 🕐 *FLEXIBLE* - No rush\\n\\n_Reply: URGENT, THIS WEEK, THIS MONTH, FLEXIBLE or 1-4_`;\n      nextStep = 'LEAD_URGENCY';\n    } else {\n      responseMsg = `⚠️ Please enter a valid location (minimum 2 characters).`;\n    }\n    break;\n  }\n\n  case 'LEAD_URGENCY': {\n    const urgencyMap = { '1':'URGENT', '2':'THIS WEEK', '3':'THIS MONTH', '4':'FLEXIBLE',\n                         'URGENT':'URGENT', 'THIS WEEK':'THIS WEEK', 'THIS MONTH':'THIS MONTH', 'FLEXIBLE':'FLEXIBLE' };\n    const urgency = urgencyMap[msgText];\n    if (urgency) {\n      sessionData.lead_urgency = urgency;\n      responseMsg = `✅ Got it!\\n\\n💰 *What's your budget range?* _(Optional)_\\n\\n*Examples:*\\n• \"₹50,000 - ₹1,00,000\"\\n• \"₹5 lakh\"\\n• \"Negotiable\"\\n\\n_Type SKIP to skip this question_`;\n      nextStep = 'LEAD_BUDGET';\n    } else {\n      responseMsg = `⚠️ Please select a valid urgency level.\\n\\n1️⃣ URGENT\\n2️⃣ THIS WEEK\\n3️⃣ THIS MONTH\\n4️⃣ FLEXIBLE`;\n    }\n    break;\n  }\n\n  case 'LEAD_BUDGET': {\n    sessionData.lead_budget = msgText === 'SKIP' ? null : rawTextOriginal.trim();\n    sessionData.phone = phone;\n    if (!member) {\n      responseMsg = `⚠️ You need to be a registered FREE member to share leads.\\n\\nPlease register first by sending *Hi* and selecting *Register*.`;\n      nextStep = 'IDLE';\n    } else {\n      action = 'generate_ai_questions';\n      actionData = { ...sessionData, member_id: member.rifah_id || member.name, member_name: member.business_name || member.full_name };\n      sessionData.member_id = member.rifah_id || member.name;\n      sessionData.member_name = member.business_name || member.full_name;\n      responseMsg = `🤖 *AI Assistant*\\n\\nGreat! I need a few more details to find you the best matches.\\n\\n⏳ Generating personalized questions...`;\n      nextStep = 'AI_Q1';\n    }\n    break;\n  }\n\n  case 'AI_Q1':\n  case 'AI_Q2':\n  case 'AI_Q3':\n  case 'AI_Q4':\n  case 'AI_Q5':\n  case 'AI_Q6': {\n    const qNum = parseInt(currentStep.replace('AI_Q',''));\n    const wordCount2 = rawTextOriginal.trim().split(/\\s+/).filter(w => w.length > 0).length;\n    if (wordCount2 < 1) {\n      responseMsg = `⚠️ Please provide a valid answer.`;\n      break;\n    }\n    sessionData[`ai_answer_${qNum}`] = rawTextOriginal.trim();\n\n    const aiQuestions = sessionData.ai_questions || [];\n    const totalQ = aiQuestions.length;\n    const nextQNum = qNum + 1;\n\n    if (nextQNum <= totalQ && aiQuestions[nextQNum - 1]) {\n      sessionData[`ai_question_${nextQNum}`] = aiQuestions[nextQNum - 1];\n      responseMsg = `✅ Got it!\\n\\n*Question ${nextQNum} of ${totalQ}:*\\n${aiQuestions[nextQNum - 1]}`;\n      nextStep = `AI_Q${nextQNum}`;\n    } else {\n      // All questions answered - create lead\n      action = 'create_lead';\n      actionData = { ...sessionData };\n      responseMsg = `✅ *All details captured!*\\n\\nCreating your lead... ⏳`;\n      nextStep = 'LEAD_CREATE';\n    }\n    break;\n  }\n\n  case 'LEAD_CREATE': {\n    // Processing state — show wait message\n    responseMsg = `⏳ Still processing your request. Please wait a moment...`;\n    break;\n  }\n\n  // ── VENDOR FLOW ─────────────────────────────────────────────\n\n  case 'VENDOR_INTRO': {\n    if (msgText === 'YES') {\n      if (!member) {\n        responseMsg = `⚠️ *Registration Required*\\n\\nYou need to be a RIFAH member to respond to leads.\\n\\nPlease send *Hi* to register.`;\n        nextStep = 'IDLE';\n      } else {\n        action = 'generate_vendor_questions';\n        actionData = { ...sessionData, vendor_id: member.rifah_id || member.name, vendor_name: member.business_name || member.full_name, vendor_phone: phone };\n        sessionData.vendor_id = member.rifah_id || member.name;\n        sessionData.vendor_name = member.business_name || member.full_name;\n        responseMsg = `🤖 *Vendor Qualification*\\n\\nI'll ask 6 quick questions to validate your capability.\\n\\n⏳ Preparing questions...`;\n        nextStep = 'VENDOR_Q1';\n      }\n    } else {\n      responseMsg = `👋 *Interested in this lead?*\\n\\nReply *YES* to start vendor qualification.\\nReply *NO* to skip.`;\n      if (msgText === 'NO') { nextStep = 'IDLE'; responseMsg = `No problem! You can respond to other leads anytime.`; }\n    }\n    break;\n  }\n\n  case 'VENDOR_Q1':\n  case 'VENDOR_Q2':\n  case 'VENDOR_Q3':\n  case 'VENDOR_Q4':\n  case 'VENDOR_Q5':\n  case 'VENDOR_Q6': {\n    const vqNum = parseInt(currentStep.replace('VENDOR_Q',''));\n    sessionData[`vendor_answer_${vqNum}`] = rawTextOriginal.trim();\n\n    const vendorQs = sessionData.vendor_questions || [];\n    const totalVQ = Math.min(vendorQs.length, 6);\n    const nextVQ = vqNum + 1;\n\n    if (nextVQ <= totalVQ) {\n      const qObj = vendorQs[nextVQ - 1];\n      const qText = typeof qObj === 'object' ? qObj.q : qObj;\n      const qType = typeof qObj === 'object' ? qObj.type : 'text';\n      sessionData[`vendor_question_${nextVQ}`] = qText;\n      responseMsg = `✅ Got it!\\n\\n*Question ${nextVQ} of ${totalVQ}:*\\n${qText}\\n\\n${qType === 'yes_no' ? '_Reply: YES or NO_' : '_Please specify:_'}`;\n      nextStep = `VENDOR_Q${nextVQ}`;\n    } else {\n      // Calculate score\n      action = 'calculate_vendor_score';\n      actionData = { ...sessionData };\n      responseMsg = `✅ *All questions answered!*\\n\\nCalculating your compatibility score... 📊`;\n      nextStep = 'VENDOR_SCORE';\n    }\n    break;\n  }\n\n  case 'VENDOR_SCORE': {\n    if (msgText === 'SUBMIT') {\n      action = 'submit_vendor_interest';\n      actionData = { ...sessionData };\n      responseMsg = `⏳ Submitting your interest...`;\n      nextStep = 'VENDOR_SUBMIT';\n    } else if (msgText === 'CANCEL') {\n      responseMsg = `Understood! You can respond to other leads anytime.`;\n      nextStep = 'IDLE';\n    } else {\n      const score = sessionData.compatibility_score || 0;\n      const emoji = score >= 80 ? '🌟🌟🌟' : score >= 70 ? '🌟🌟' : score >= 50 ? '🌟' : '⚠️';\n      responseMsg = `📊 *Match Analysis*\\n\\nCompatibility Score: *${score}/100* ${emoji}\\n\\n${score >= 70 ? '🌟 Excellent match!' : score >= 50 ? '✅ Good fit.' : '⚠️ Low match score.'}\\n\\nReply *SUBMIT* to express interest\\nReply *CANCEL* to skip`;\n    }\n    break;\n  }\n\n  case 'VENDOR_SUBMIT': {\n    responseMsg = `⏳ Processing your submission...`;\n    break;\n  }\n\n  default: {\n    return [{ json: { skip: true, phone, currentStep } }];\n  }\n}\n\nreturn [{\n  json: {\n    phone,\n    responseMsg,\n    nextStep,\n    action,\n    actionData: JSON.stringify(actionData),\n    sessionData: JSON.stringify(sessionData),\n    sessionName,\n    currentStep,\n    shouldSendMsg: responseMsg.length > 0,\n    skip: false\n  }\n}];\n"
+      },
+      "id": "f2a-node-07",
+      "name": "State Machine Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f2a-c2",
+              "leftValue": "={{ $json.shouldSendMsg }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "f2a-c2b",
+              "leftValue": "={{ $json.shouldSendMsg }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "f2a-node-08",
+      "name": "IF Should Send Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('State Machine Lead').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('State Machine Lead').item.json.responseMsg) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-09",
+      "name": "Send WhatsApp Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1400,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const smData = $('State Machine Lead').first().json;\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\n\n// For actions that have a subsequent dedicated session update (e.g. Store AI Questions,\n// Update Session Score), skip the generic Update Session by using a bogus sessionName.\n// This node runs AFTER those action branches complete, so the real session is already\n// correctly set. Using a bogus name causes a harmless 404 (ignored by neverError:true).\nconst deferredActions = ['generate_ai_questions', 'generate_vendor_questions', 'calculate_vendor_score'];\nconst sessionName = deferredActions.includes(smData.action)\n  ? 'SKIP_ALREADY_UPDATED'\n  : smData.sessionName;\nconst isNew = deferredActions.includes(smData.action)\n  ? false\n  : !smData.sessionName;\n\nreturn [{\n  json: {\n    phone: smData.phone,\n    nextStep: smData.nextStep,\n    sessionData: smData.sessionData,\n    sessionName,\n    isNew,\n    now: ts\n  }\n}];\n"
+      },
+      "id": "f2a-node-10",
+      "name": "Prepare Session Upsert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f2a-c3",
+              "leftValue": "={{ $json.isNew }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "f2a-c3b",
+              "leftValue": "={{ $json.isNew }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "f2a-node-11",
+      "name": "IF New Session",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"doctype\": \"RIFAH Session\",\n  \"phone_number\": \"{{ $json.phone }}\",\n  \"current_step\": \"{{ $json.nextStep }}\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"status\": \"Active\",\n  \"last_activity\": \"{{ $json.now }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-12",
+      "name": "Create Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1600,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"{{ $json.nextStep }}\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"last_activity\": \"{{ $json.now }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-13",
+      "name": "Update Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1600,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "f2a-r1",
+                    "leftValue": "={{ $('State Machine Lead').item.json.action }}",
+                    "rightValue": "create_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create_lead"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "f2a-r2",
+                    "leftValue": "={{ $('State Machine Lead').item.json.action }}",
+                    "rightValue": "generate_ai_questions",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "generate_ai_questions"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "f2a-r3",
+                    "leftValue": "={{ $('State Machine Lead').item.json.action }}",
+                    "rightValue": "vendor_lead_lookup",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "vendor_lead_lookup"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "f2a-r4",
+                    "leftValue": "={{ $('State Machine Lead').item.json.action }}",
+                    "rightValue": "generate_vendor_questions",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "generate_vendor_questions"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "f2a-r5",
+                    "leftValue": "={{ $('State Machine Lead').item.json.action }}",
+                    "rightValue": "calculate_vendor_score",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "calculate_vendor_score"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "f2a-r6",
+                    "leftValue": "={{ $('State Machine Lead').item.json.action }}",
+                    "rightValue": "submit_vendor_interest",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "submit_vendor_interest"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f2a-node-14",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "[\"name\"]"
+            },
+            {
+              "name": "limit_page_length",
+              "value": "9999"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-15",
+      "name": "Get Lead Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const smData = $('State Machine Lead').first().json;\nconst countResult = $input.first().json;\n\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst existingCount = countResult?.data?.length || 0;\nconst newIndex = String(existingCount + 1).padStart(4, '0');\nconst year = new Date().getFullYear();\nconst lead_id = `LEAD-FREE-${year}-${newIndex}`;\n\nconst description = actionData.lead_description || '';\nconst title = description.substring(0, 50) + (description.length > 50 ? '...' : '');\n\nconst aiQualification = {};\nfor (let i = 1; i <= 6; i++) {\n  if (actionData[`ai_question_${i}`]) aiQualification[`question_${i}`] = actionData[`ai_question_${i}`];\n  if (actionData[`ai_answer_${i}`]) aiQualification[`answer_${i}`] = actionData[`ai_answer_${i}`];\n}\n\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\n\nconst payload = {\n  doctype: 'RIFAH Lead',\n  lead_id,\n  member_id: actionData.member_id || '',\n  member_name: actionData.member_name || '',\n  member_phone: actionData.phone || smData.phone,\n  tier: 'FREE',\n  lead_type: actionData.lead_type || '',\n  title,\n  description,\n  location: actionData.lead_location || '',\n  urgency: actionData.lead_urgency || '',\n  budget: actionData.lead_budget || '',\n  ai_qualification: JSON.stringify(aiQualification),\n  status: 'Pending Review',\n  posted_to_groups: '[]',\n  interested_vendors: '[]',\n  connection_made: 0,\n  created_at: ts\n};\n\nreturn [{ json: { payload, lead_id, member_phone: actionData.phone || smData.phone, member_name: actionData.member_name || '', lead_type: actionData.lead_type || '', location: actionData.lead_location || '', urgency: actionData.lead_urgency || '', budget: actionData.lead_budget || '', description } }];\n"
+      },
+      "id": "f2a-node-16",
+      "name": "Build Lead Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-17",
+      "name": "Create Lead in ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"918147317832\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"🔔 *NEW LEAD FOR REVIEW*\\n\\n📋 Lead ID: *{{ $('Build Lead Data').item.json.lead_id }}*\\n👤 {{ $('Build Lead Data').item.json.member_name }}\\n📞 {{ $('Build Lead Data').item.json.member_phone }}\\n\\n*Type:* {{ $('Build Lead Data').item.json.lead_type }}\\n*Description:* {{ $('Build Lead Data').item.json.description.substring(0,150) }}\\n*Location:* {{ $('Build Lead Data').item.json.location }}\\n*Urgency:* {{ $('Build Lead Data').item.json.urgency }}\\n*Budget:* {{ $('Build Lead Data').item.json.budget || 'Not specified' }}\\n\\n━━━━━━━━━━━━━━━━━━━━\\n*Actions (SLA: 4 hours):*\\nAPPROVE {{ $('Build Lead Data').item.json.lead_id }}\\nREJECT {{ $('Build Lead Data').item.json.lead_id }} [reason]\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-18",
+      "name": "Notify Admin New Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a B2B requirement qualification assistant for an Indian marketplace. Generate specific follow-up questions to understand requirements better. Return ONLY valid JSON.\"},\n    {\"role\": \"user\", \"content\": \"User requirement:\\nType: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_type : '' }}\\nDescription: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_description : '' }}\\nLocation: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_location : '' }}\\n\\nGenerate 4-5 specific follow-up questions. Return ONLY JSON:\\n{\\\"questions\\\": [\\\"Question 1?\\\", \\\"Question 2?\\\", ...]}\"}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 400,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-19",
+      "name": "Call OpenAI Lead Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OpenAI_API_Auth",
+          "name": "OpenAI API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst smData = $('State Machine Lead').first().json;\n\nlet questions = [];\ntry {\n  const content = response.choices[0].message.content;\n  let parsed;\n  try { parsed = JSON.parse(content); }\n  catch(e) {\n    const cleaned = content.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim();\n    parsed = JSON.parse(cleaned);\n  }\n  questions = parsed.questions || [];\n  if (!questions.length) throw new Error('empty');\n} catch(e) {\n  // Fallback by lead type\n  const fallback = {\n    'BUY': ['What are the exact specifications?','What quantity do you need per order?','Any quality certifications required?','What is your delivery timeline?','Any special requirements or customization?'],\n    'SELL': ['What are the product specifications?','What is your production capacity per month?','Do you have any certifications?','What is your delivery capability?','What makes your product unique?'],\n    'SERVICE NEED': ['What is the exact scope of work?','What is the project timeline?','What level of expertise is needed?','What are the deliverables?','Any specific tools or technologies required?'],\n    'SERVICE OFFER': ['What specific services do you provide?','What is your capacity per month?','What certifications do you have?','What is your typical project timeline?','What industries have you worked with?']\n  };\n  const actionData = JSON.parse(smData.actionData || '{}');\n  questions = fallback[actionData.lead_type] || fallback['BUY'];\n}\n\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst q1 = questions[0] || 'Please provide more details about your requirement';\n\nreturn [{ json: {\n  questions,\n  q1,\n  totalQuestions: questions.length,\n  phone: smData.phone,\n  sessionName: smData.sessionName,\n  sessionData: smData.sessionData,\n  actionData: smData.actionData,\n  firstQuestion: `🤖 *AI Assistant*\\n\\nGreat! I need a few more details to find you the best matches.\\n\\nI'll ask ${questions.length} quick question${questions.length !== 1 ? 's' : ''}...\\n\\n*Question 1 of ${questions.length}:*\\n${q1}`\n}}];\n"
+      },
+      "id": "f2a-node-20",
+      "name": "Parse AI Lead Questions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"AI_Q1\",\n  \"session_data\": {{ JSON.stringify(JSON.stringify({ ...JSON.parse($json.sessionData || '{}'), ai_questions: $json.questions, ai_question_1: $json.q1 })) }},\n  \"last_activity\": \"{{ new Date().toISOString().replace('T',' ').substring(0,19) }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-21",
+      "name": "Store AI Questions in Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Parse AI Lead Questions').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Parse AI Lead Questions').item.json.firstQuestion) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-22",
+      "name": "Send AI Q1 to User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"lead_id\",\"=\",JSON.parse($('State Machine Lead').item.json.actionData || '{}').lead_id]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"lead_type\",\"title\",\"description\",\"location\",\"urgency\",\"budget\",\"member_name\",\"member_phone\",\"status\",\"tier\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-23",
+      "name": "Get Lead for Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"whatsapp_number\",\"=\",$('State Machine Lead').item.json.phone]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"full_name\",\"business_name\",\"city_state\",\"industry\",\"membership_tier\",\"status\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-24",
+      "name": "Check Vendor Member",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leadResult = $('Get Lead for Vendor').first().json;\nconst vendorResult = $input.first().json;\nconst smData = $('State Machine Lead').first().json;\n\nconst leads = leadResult?.data || [];\nconst lead = leads.length > 0 ? leads[0] : null;\n\nconst vendors = vendorResult?.data || [];\nconst vendor = vendors.length > 0 ? vendors[0] : null;\n\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst lead_id = actionData.lead_id || '';\n\nlet introMsg = '';\nif (!lead) {\n  introMsg = `❌ Lead not found: *${lead_id}*\\n\\nThis lead may have expired or been removed. Please check the lead ID and try again.`;\n} else if (lead.status === 'Closed' || lead.status === 'Cancelled') {\n  introMsg = `⚠️ This lead is no longer active.\\n\\nLead *${lead_id}* has been ${lead.status.toLowerCase()}.`;\n} else {\n  const tierBadge = lead.tier === 'PREM' ? '⭐ PREMIUM' : '🟢 FREE';\n  introMsg = `📋 *Lead Details*\\n\\n🆔 *${lead.lead_id}* ${tierBadge}\\n📌 *Type:* ${lead.lead_type}\\n📝 *Requirement:* ${lead.description}\\n\\n📍 *Location:* ${lead.location}\\n⏰ *Urgency:* ${lead.urgency}\\n💰 *Budget:* ${lead.budget || 'Not specified'}\\n\\n━━━━━━━━━━━━━━━━━━━━\\n*Are you interested in this lead?*\\n\\nReply *YES* to start vendor qualification\\nReply *NO* to skip`;\n}\n\nreturn [{\n  json: {\n    lead,\n    vendor,\n    phone,\n    lead_id,\n    introMsg,\n    sessionName: smData.sessionName,\n    sessionData: smData.sessionData\n  }\n}];\n"
+      },
+      "id": "f2a-node-25",
+      "name": "Build Vendor Intro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Build Vendor Intro').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Build Vendor Intro').item.json.introMsg) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-26",
+      "name": "Send Vendor Intro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a B2B vendor qualification assistant for an Indian marketplace. Generate vendor validation questions. Return ONLY valid JSON.\"},\n    {\"role\": \"user\", \"content\": \"Lead Details:\\nType: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_type : '' }}\\nDescription: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_description : '' }}\\nLocation: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_location : '' }}\\nBudget: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_budget : '' }}\\nUrgency: {{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_urgency : '' }}\\n\\nGenerate exactly 6 vendor validation questions. Return ONLY JSON:\\n{\\\"questions\\\": [{\\\"q\\\": \\\"Can you supply/provide this?\\\", \\\"type\\\": \\\"yes_no\\\"}, {\\\"q\\\": \\\"Do you have required certification?\\\", \\\"type\\\": \\\"yes_no\\\"}, {\\\"q\\\": \\\"What is your delivery timeline?\\\", \\\"type\\\": \\\"text\\\"}, {\\\"q\\\": \\\"What is your price/rate?\\\", \\\"type\\\": \\\"text\\\"}, {\\\"q\\\": \\\"Can you provide additional services mentioned?\\\", \\\"type\\\": \\\"yes_no\\\"}, {\\\"q\\\": \\\"Do you have past experience with similar clients?\\\", \\\"type\\\": \\\"yes_no\\\"}]}\"}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-27",
+      "name": "Call OpenAI Vendor Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OpenAI_API_Auth",
+          "name": "OpenAI API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst smData = $('State Machine Lead').first().json;\n\nconst defaultQuestions = [\n  { q: 'Can you supply/provide this requirement?', type: 'yes_no' },\n  { q: 'Do you have the required certifications or qualifications?', type: 'yes_no' },\n  { q: 'What is your delivery/completion timeline?', type: 'text' },\n  { q: 'What is your price or rate for this requirement?', type: 'text' },\n  { q: 'Can you handle any additional services related to this?', type: 'yes_no' },\n  { q: 'Do you have past experience with similar clients or projects?', type: 'yes_no' }\n];\n\nlet questions = [];\ntry {\n  const content = response.choices[0].message.content;\n  let parsed;\n  try { parsed = JSON.parse(content); }\n  catch(e) {\n    const cleaned = content.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim();\n    parsed = JSON.parse(cleaned);\n  }\n  questions = parsed.questions || [];\n  if (!questions.length) throw new Error('empty');\n} catch(e) {\n  questions = defaultQuestions;\n}\n\n// Ensure max 6 and each has q and type\nquestions = questions.slice(0, 6).map(q => ({\n  q: typeof q === 'object' ? (q.q || q.question || String(q)) : String(q),\n  type: (typeof q === 'object' && q.type) ? q.type : 'text'\n}));\n\nconst q1 = questions[0];\nconst q1Text = q1 ? q1.q : 'Can you fulfill this requirement?';\nconst q1Type = q1 ? q1.type : 'yes_no';\n\nreturn [{ json: {\n  questions,\n  q1Text,\n  q1Type,\n  totalQuestions: questions.length,\n  phone: smData.phone,\n  sessionName: smData.sessionName,\n  sessionData: smData.sessionData,\n  actionData: smData.actionData,\n  firstQuestion: `🤖 *Vendor Qualification*\\n\\nI'll ask ${questions.length} questions to validate your capability for this lead.\\n\\n*Question 1 of ${questions.length}:*\\n${q1Text}\\n\\n${q1Type === 'yes_no' ? '_Reply: YES or NO_' : '_Please specify:_'}`\n}}];\n"
+      },
+      "id": "f2a-node-28",
+      "name": "Parse AI Vendor Questions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"VENDOR_Q1\",\n  \"session_data\": {{ JSON.stringify(JSON.stringify({ ...JSON.parse($json.sessionData || '{}'), vendor_questions: $json.questions, vendor_question_1: $json.q1Text })) }},\n  \"last_activity\": \"{{ new Date().toISOString().replace('T',' ').substring(0,19) }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-29",
+      "name": "Store Vendor Questions in Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Parse AI Vendor Questions').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Parse AI Vendor Questions').item.json.firstQuestion) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-30",
+      "name": "Send Vendor Q1 to User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const smData = $('State Machine Lead').first().json;\nconst actionData = JSON.parse(smData.actionData || '{}');\n\n// Scores: Q1 can supply (25), Q2 certification (20), Q3 timeline (20), Q4 price (10), Q5 extra (15), Q6 experience (10)\nlet score = 0;\n\nconst a1 = (actionData.vendor_answer_1 || '').toUpperCase();\nconst a2 = (actionData.vendor_answer_2 || '').toUpperCase();\nconst a3 = actionData.vendor_answer_3 || '';\nconst a4 = actionData.vendor_answer_4 || '';\nconst a5 = (actionData.vendor_answer_5 || '').toUpperCase();\nconst a6 = (actionData.vendor_answer_6 || '').toUpperCase();\nconst urgency = actionData.lead_urgency || 'FLEXIBLE';\n\nif (a1.includes('YES')) score += 25;\nif (a2.includes('YES')) score += 20;\n\n// Timeline check\nconst urgencyDays = { 'URGENT':3,'THIS WEEK':7,'THIS MONTH':30,'FLEXIBLE':60 }[urgency] || 30;\nconst dayMatch = a3.match(/(\\d+)\\s*days?/i);\nconst weekMatch = a3.match(/(\\d+)\\s*weeks?/i);\nconst monthMatch = a3.match(/(\\d+)\\s*months?/i);\nlet timeline = 0;\nif (a3.toLowerCase().includes('immediate') || a3.toLowerCase().includes('same day')) timeline = 1;\nelse if (dayMatch) timeline = parseInt(dayMatch[1]);\nelse if (weekMatch) timeline = parseInt(weekMatch[1]) * 7;\nelse if (monthMatch) timeline = parseInt(monthMatch[1]) * 30;\nif (timeline > 0 && timeline <= urgencyDays) score += 20;\nelse if (timeline === 0) score += 10; // partial credit for given but unparseable timeline\n\nif (a5.includes('YES')) score += 15;\nif (a6.includes('YES')) score += 10;\n\nconst scoreEmoji = score >= 80 ? '🌟🌟🌟' : score >= 70 ? '🌟🌟' : score >= 50 ? '🌟' : '⚠️';\nconst recommendation = score >= 70 ? '🌟 *This looks like an excellent match!*' : score >= 50 ? '✅ *This could be a good fit.*' : '⚠️ *Match score is low. Consider carefully before proceeding.*';\n\nconst vqs = actionData.vendor_questions || [];\nconst summaryLines = [];\nfor (let i = 1; i <= 6; i++) {\n  const q = vqs[i-1];\n  const qText = typeof q === 'object' ? q.q : (q || '');\n  const a = actionData[`vendor_answer_${i}`] || '-';\n  if (qText) summaryLines.push(`• ${qText.split('?')[0]}: ${a}`);\n}\n\nconst scoreMsg = `📊 *Match Analysis Complete*\\n\\nBased on your answers:\\n${summaryLines.join('\\n')}\\n\\n*Compatibility Score:* ${score}/100 ${scoreEmoji}\\n\\n${recommendation}\\n\\nWould you like to submit your interest to the buyer?\\n\\nReply *SUBMIT* or *CANCEL*`;\n\nreturn [{ json: {\n  score,\n  scoreMsg,\n  phone: smData.phone,\n  sessionName: smData.sessionName,\n  sessionData: JSON.stringify({ ...actionData, compatibility_score: score }),\n  lead_id: actionData.lead_id,\n  vendor_id: actionData.vendor_id,\n  vendor_name: actionData.vendor_name,\n  vendor_phone: smData.phone\n}}];\n"
+      },
+      "id": "f2a-node-31",
+      "name": "Calculate Vendor Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"VENDOR_SCORE\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"last_activity\": \"{{ new Date().toISOString().replace('T',' ').substring(0,19) }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-32",
+      "name": "Update Session Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Calculate Vendor Score').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Calculate Vendor Score').item.json.scoreMsg) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-33",
+      "name": "Send Score to Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ $('State Machine Lead').item.json.actionData ? JSON.parse($('State Machine Lead').item.json.actionData).lead_id : '' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"interested_vendors\": {{ JSON.stringify(JSON.stringify([{ vendor_id: JSON.parse($('State Machine Lead').item.json.actionData || '{}').vendor_id, vendor_name: JSON.parse($('State Machine Lead').item.json.actionData || '{}').vendor_name, vendor_phone: $('State Machine Lead').item.json.phone, compatibility_score: JSON.parse($('State Machine Lead').item.json.actionData || '{}').compatibility_score || 0, submitted_at: new Date().toISOString().replace('T',' ').substring(0,19) }])) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-34",
+      "name": "Store Vendor Interest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"918147317832\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"🤝 *NEW VENDOR INTEREST*\\n\\n📋 Lead: *{{ JSON.parse($('State Machine Lead').item.json.actionData || '{}').lead_id }}*\\n\\n👤 *Vendor:* {{ JSON.parse($('State Machine Lead').item.json.actionData || '{}').vendor_name }}\\n📞 {{ $('State Machine Lead').item.json.phone }}\\n🏢 ID: {{ JSON.parse($('State Machine Lead').item.json.actionData || '{}').vendor_id }}\\n\\n📊 *Score:* {{ JSON.parse($('State Machine Lead').item.json.actionData || '{}').compatibility_score || 0 }}/100\\n\\n━━━━━━━━━━━━━━━━━━━━\\nVendor has submitted interest. Review and connect with buyer if appropriate.\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-35",
+      "name": "Notify Admin Vendor Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('State Machine Lead').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"✅ *Interest Submitted Successfully!*\\n\\n🎉 Your response has been recorded for lead *{{ JSON.parse($('State Machine Lead').item.json.actionData || '{}').lead_id }}*.\\n\\n📊 *Your Score:* {{ JSON.parse($('State Machine Lead').item.json.actionData || '{}').compatibility_score || 0 }}/100\\n\\n⏳ *What happens next?*\\n• Our team will review your submission\\n• If selected, we will connect you with the buyer\\n• You'll be notified within 24-48 hours\\n\\n_Thank you for using RIFAH Connect!_ 🙏\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-36",
+      "name": "Send Vendor Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook POST": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "IF Valid Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid Message": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Member",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Member": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "State Machine Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State Machine Lead": {
+      "main": [
+        [
+          {
+            "node": "IF Should Send Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Session Upsert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Should Send Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Session Upsert": {
+      "main": [
+        [
+          {
+            "node": "IF New Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF New Session": {
+      "main": [
+        [
+          {
+            "node": "Create Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [
+          {
+            "node": "Get Lead Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call OpenAI Lead Questions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Lead for Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call OpenAI Vendor Questions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calculate Vendor Score",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store Vendor Interest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead Count": {
+      "main": [
+        [
+          {
+            "node": "Build Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Create Lead in ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead in ERPNext": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Lead Questions": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Lead Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Lead Questions": {
+      "main": [
+        [
+          {
+            "node": "Store AI Questions in Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store AI Questions in Session": {
+      "main": [
+        [
+          {
+            "node": "Send AI Q1 to User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead for Vendor": {
+      "main": [
+        [
+          {
+            "node": "Check Vendor Member",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Vendor Member": {
+      "main": [
+        [
+          {
+            "node": "Build Vendor Intro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Vendor Intro": {
+      "main": [
+        [
+          {
+            "node": "Send Vendor Intro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Vendor Questions": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Vendor Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Vendor Questions": {
+      "main": [
+        [
+          {
+            "node": "Store Vendor Questions in Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Vendor Questions in Session": {
+      "main": [
+        [
+          {
+            "node": "Send Vendor Q1 to User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Vendor Score": {
+      "main": [
+        [
+          {
+            "node": "Update Session Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session Score": {
+      "main": [
+        [
+          {
+            "node": "Send Score to Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Vendor Interest": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Vendor Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin Vendor Match": {
+      "main": [
+        [
+          {
+            "node": "Send Vendor Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "flow2a-share-lead-001",
+  "tags": []
+}

@@ -127,10 +127,42 @@ async function deleteMember(phone) {
   return request(`${BASE}/api/resource/RIFAH Member/${m.name}`, 'DELETE');
 }
 
+// ── Leads ─────────────────────────────────────────────────────────────────────
+async function getLead(leadId) {
+  const r = await request(`${BASE}/api/resource/RIFAH Lead/${encodeURIComponent(leadId)}`);
+  return r.body?.data || null;
+}
+
+async function getLeadByPhone(phone) {
+  const fields  = enc(['name', 'lead_id', 'member_phone', 'status', 'lead_type', 'tier', 'ai_qualification', 'interested_vendors']);
+  const filters = enc([['member_phone', '=', phone]]);
+  const r = await request(`${BASE}/api/resource/RIFAH Lead?filters=${filters}&fields=${fields}&order_by=creation desc&limit=1`);
+  return r.body?.data?.[0] || null;
+}
+
+async function deleteLead(leadId) {
+  return request(`${BASE}/api/resource/RIFAH Lead/${encodeURIComponent(leadId)}`, 'DELETE');
+}
+
+async function deleteLeadByPhone(phone) {
+  const fields  = enc(['name', 'lead_id']);
+  const filters = enc([['member_phone', '=', phone]]);
+  const r = await request(`${BASE}/api/resource/RIFAH Lead?filters=${filters}&fields=${fields}&limit=20`);
+  const leads = r.body?.data || [];
+  for (const l of leads) await request(`${BASE}/api/resource/RIFAH Lead/${l.name}`, 'DELETE');
+}
+
+async function listGroups() {
+  const fields = enc(['name', 'group_id', 'group_name', 'city', 'state', 'industry', 'is_active']);
+  const r = await request(`${BASE}/api/resource/RIFAH WhatsApp Group?fields=${fields}&limit=20`);
+  return r.body?.data || [];
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function cleanPhone(phone) {
   await deleteSession(phone);
   await deleteMember(phone);
+  await deleteLeadByPhone(phone);
 }
 
 async function cleanTestPhones() {
@@ -148,8 +180,9 @@ async function whoami() {
 module.exports = {
   getSession, getSessionDetail, listSessions, deleteSession,
   getMember, getMemberDetail, listMembers, createMember, deleteMember,
+  getLead, getLeadByPhone, deleteLead, deleteLeadByPhone, listGroups,
   cleanPhone, cleanTestPhones, whoami,
-  TEST_PHONES, HEADERS, BASE,
+  TEST_PHONES, HEADERS, BASE, request, enc,
 };
 
 // ── CLI ───────────────────────────────────────────────────────────────────────
