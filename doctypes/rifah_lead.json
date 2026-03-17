@@ -27,6 +27,10 @@
     "budget",
     "ai_section",
     "ai_qualification",
+    "premium_section",
+    "matched_vendors",
+    "introduction_sent",
+    "is_premium_request",
     "groups_section",
     "posted_to_groups",
     "vendors_section",
@@ -88,7 +92,7 @@
       "fieldtype": "Select",
       "label": "Status",
       "reqd": 1,
-      "options": "Pending Review\nApproved - Ready for Posting\nPosted to Groups\nHas Interested Vendors\nConnected\nFollow-up Sent\nRejected\nClosed\nAwaiting User Response",
+      "options": "Pending Review\nApproved - Ready for Posting\nPosted to Groups\nHas Interested Vendors\nConnected\nFollow-up Sent\nRejected\nClosed\nAwaiting User Response\nProcessing - Running Matching Algorithm\nVendor Selection\nIntroductions Sent\nPosted to Groups (Premium)",
       "in_list_view": 1,
       "default": "Pending Review"
     },
@@ -161,6 +165,27 @@
       "fieldname": "ai_qualification",
       "fieldtype": "Long Text",
       "label": "AI Qualification (JSON)"
+    },
+    {
+      "fieldname": "premium_section",
+      "fieldtype": "Section Break",
+      "label": "Premium Matching (Flow 2B)"
+    },
+    {
+      "fieldname": "matched_vendors",
+      "fieldtype": "Long Text",
+      "label": "Matched Vendors (JSON)"
+    },
+    {
+      "fieldname": "introduction_sent",
+      "fieldtype": "Long Text",
+      "label": "Introductions Sent (JSON)"
+    },
+    {
+      "fieldname": "is_premium_request",
+      "fieldtype": "Check",
+      "label": "Is Premium Request",
+      "default": "0"
     },
     {
       "fieldname": "groups_section",
