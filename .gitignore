@@ -6,6 +6,8 @@
 .env.*
 *.env
 
+misc
+
 # Node
 node_modules/
 npm-debug.log*
