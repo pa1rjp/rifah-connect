@@ -1,0 +1,4473 @@
+{
+  "name": "RIFAH Connect",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "59201482-6bc1-46ab-b633-8c7a1efeb9f7",
+      "name": "WhatsApp Webhook POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        416
+      ],
+      "webhookId": "rifah-wa-post-webhook"
+    },
+    {
+      "parameters": {
+        "path": "whatsapp-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "9f8ab5f2-e7c7-49d4-96a8-9f7bcc911946",
+      "name": "WhatsApp Webhook GET",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "rifah-wa-get-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst query = $input.first().json.query || {};\nconst verifyToken = $env.RIFAH_VERIFY_TOKEN || 'rifah_verify_token_2024';\n\nif (query['hub.mode'] === 'subscribe' && query['hub.verify_token'] === verifyToken) {\n  return [{ json: { challenge: query['hub.challenge'], valid: true } }];\n}\nreturn [{ json: { challenge: 'ERROR', valid: false } }];\n"
+      },
+      "id": "16d409bc-1516-4986-a2f0-c53c22d517c8",
+      "name": "Extract Verification Challenge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain"
+              }
+            ]
+          }
+        }
+      },
+      "id": "378f938b-1f5e-498e-9f0a-2d42605ff62c",
+      "name": "Respond Webhook Verification",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Parse Meta Cloud API Webhook Payload\nconst body = $input.first().json.body || $input.first().json;\n\nconst entry = body?.entry?.[0];\nconst change = entry?.changes?.[0];\nconst value = change?.value;\n\n// Ignore status updates (delivery receipts etc)\nif (value?.statuses && !value?.messages) {\n  return [{ json: { skip: true, reason: 'status_update' } }];\n}\n\nconst messages = value?.messages;\nif (!messages || messages.length === 0) {\n  return [{ json: { skip: true, reason: 'no_message' } }];\n}\n\nconst msg = messages[0];\nconst contact = value?.contacts?.[0];\n\nconst extracted = {\n  skip: false,\n  from: msg.from,\n  from_name: contact?.profile?.name || 'Unknown',\n  message_id: msg.id,\n  timestamp: msg.timestamp,\n  type: msg.type,\n  text: msg.text?.body || '',\n  phone_number_id: value?.metadata?.phone_number_id,\n  // Media fields\n  image_id: msg.image?.id || null,\n  image_mime: msg.image?.mime_type || null,\n  document_id: msg.document?.id || null,\n  document_filename: msg.document?.filename || null,\n  document_mime: msg.document?.mime_type || null,\n};\n\nreturn [{ json: extracted }];\n"
+      },
+      "id": "5ac1f977-048a-40fc-8f8f-e46f7949574f",
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "748a1187-0deb-4905-8800-36a94f4b3f31",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "08f0c125-2199-44dc-bd9f-a92b48e1c1a5",
+      "name": "IF Valid Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        448,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"phone_number\",\"=\",$('Extract Message').item.json.from]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"phone_number\",\"current_step\",\"session_data\",\"status\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "bc055a0d-cc5f-487f-a2f6-e280d29fdbcf",
+      "name": "Get Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        672,
+        320
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"whatsapp_number\",\"=\",$('Extract Message').item.json.from]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"full_name\",\"business_name\",\"city_state\",\"industry\",\"membership_tier\",\"status\",\"rifahmart_url\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "109f0795-2f40-4a90-9bbe-d95aac0c3eb8",
+      "name": "Get Member",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        672,
+        512
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// ============================================================\n// RIFAH Connect - Flow 1 State Machine\n// ============================================================\nconst msgNode = $('Extract Message').first().json;\nconst sessionRaw = $('Get Session').first().json;\nconst memberRaw = $('Get Member').first().json;\n\nconst phone = msgNode.from;\nconst msgType = msgNode.type || 'text';\nconst rawText = msgNode.text || '';\nconst msgText = rawText.trim().toUpperCase();\nconst rawTextOriginal = rawText.trim();\nconst hasMedia = ['image', 'document'].includes(msgType);\nconst mediaId = hasMedia ? (msgNode.image_id || msgNode.document_id) : null;\nconst mediaFilename = msgNode.document_filename || ('file_' + Date.now());\nconst mediaMimeType = msgNode.document_mime || 'image/jpeg';\n\n// Parse session\nconst sessionDocs = sessionRaw?.data || [];\nconst sessionDoc = sessionDocs.length > 0 ? sessionDocs[0] : {};\nlet currentStep = sessionDoc.current_step || 'NEW';\nlet sessionData = {};\ntry { sessionData = JSON.parse(sessionDoc.session_data || '{}'); } catch(e) {}\nconst sessionName = sessionDoc.name || null;\n\n// Parse existing member\nconst memberDocs = memberRaw?.data || [];\nconst memberExists = memberDocs.length > 0;\nconst member = memberExists ? memberDocs[0] : null;\n\nlet responseMsg = '';\nlet nextStep = currentStep;\nlet action = 'none';\nlet actionData = {};\n\n// ---- HELPER: Main Menu ----\nfunction mainMenu() {\n  return `👋 *Welcome to RIFAH Connect!*\\n_Connecting 1 Lakh+ Businesses_\\n\\nPlease select an option:\\n\\n1️⃣ Register / Update Business\\n2️⃣ Find Vendors & Buyers\\n3️⃣ Post a Requirement\\n4️⃣ My Profile\\n5️⃣ Help & Support\\n\\n_Reply with a number (1-5)_`;\n}\n\n// ---- HELPER: Membership Menu ----\nfunction membershipMenu() {\n  return `🏷️ *Step 5: Choose Your Membership*\\n\\n🆓 *FREE TIER (₹0/year)*\\n• Manual support\\n• 2-3 WhatsApp groups\\n• Basic RifahMart listing\\n• 24-48 hr response time\\n\\n⭐ *PREMIUM TIER (₹3,000/year)*\\n• 24/7 automated bot\\n• 5-10 WhatsApp groups\\n• Smart vendor matching\\n• Dashboard access\\n• Featured RifahMart listing\\n• 2-4 hr response time\\n\\nReply: *FREE* or *PREMIUM*`;\n}\n\n\n// ─── LEAD ID / ADMIN PATTERN DETECTION ──────────────────────────────────────\n// ─── LEAD ID PATTERN DETECTION ───────────────────────────────\nconst leadPattern = /^LEAD-(FREE|PREM)-\\d{4}-\\d+$/i;\nconst isLeadId = leadPattern.test(rawTextOriginal.trim());\n\n// Admin command detection (from admin WhatsApp number)\nconst adminPhone = sessionData._admin_phone || '';\nconst connectMatch = rawTextOriginal.match(/^CONNECT\\s+(\\S+)\\s+(\\S+)/i);\nconst declineMatch = rawTextOriginal.match(/^DECLINE\\s+(\\S+)\\s+(\\S+)/i);\nif (connectMatch || declineMatch) {\n  const m = connectMatch || declineMatch;\n  action = 'admin_approval';\n  actionData = {\n    command: connectMatch ? 'CONNECT' : 'DECLINE',\n    lead_id: m[1],\n    vendor_id: m[2],\n    admin_phone: phone\n  };\n  return [{ json: { phone, responseMsg: '', nextStep: currentStep, action, actionData: JSON.stringify(actionData), sessionData: JSON.stringify(sessionData), sessionName, currentStep, shouldSendMsg: false, skip: false } }];\n}\n\n\nswitch(currentStep) {\n\n  case 'NEW':\n    sessionData = { phone };\n    if (memberExists) {\n      responseMsg = `👋 Welcome back, *${member.full_name}*!\n\n🪪 Your RIFAH ID: *${member.rifah_id}*\n⭐ Membership: ${member.membership_tier}\n\nWhat would you like to do?\n\n1️⃣ Update my profile\n2️⃣ View current info\n\n_Reply 1 or 2_`;\n      nextStep = 'EXISTING_CHOICE';\n      sessionData.existing_member_id = member.name;\n    sessionData.existing_rifah_id = member.rifah_id;\n    } else {\n      responseMsg = mainMenu();\n      nextStep = 'MENU';\n    }\n    break;\n\n  case 'MENU':\n    if (msgText === '1') {\n      if (memberExists) {\n        responseMsg = `👋 Welcome back, *${member.full_name}*!\\n\\n🪪 Your RIFAH ID: *${member.rifah_id}*\\n⭐ Membership: ${member.membership_tier}\\n\\nWhat would you like to do?\\n\\n1️⃣ Update my profile\\n2️⃣ View current info\\n\\n_Reply 1 or 2_`;\n        nextStep = 'EXISTING_CHOICE';\n        sessionData.existing_member_id = member.name;\n        sessionData.existing_rifah_id = member.rifah_id;\n      } else {\n        responseMsg = `✅ Let's get you registered with RIFAH!\\n\\n*Question 1 of 6*\\n\\n👤 What is your *full name*?`;\n        nextStep = 'Q1';\n      }\n    } else if (msgText === '2') {\n      if (!memberExists) {\n        responseMsg = `⚠️ You need to be a registered RIFAH member to share leads.\\n\\nReply *1* to register your business first.`;\n      } else {\n        nextStep = 'LEAD_TYPE';\n        if (member.membership_tier === 'PREMIUM' && member.status === 'Active Premium') {\n          responseMsg = `⭐ *PREMIUM Share Lead*\\n\\nWhat type of requirement do you have?\\n\\n1️⃣ *BUY* — I need to purchase\\n2️⃣ *SELL* — I have products to sell\\n3️⃣ *SERVICE NEED* — I need a service\\n4️⃣ *SERVICE OFFER* — I provide a service\\n\\n_Reply: 1, 2, 3, or 4_`;\n          sessionData.flow = 'flow2b';\n        } else {\n          responseMsg = `📋 *Share a Lead (Free)*\\n\\nWhat type of requirement do you have?\\n\\n1️⃣ *BUY* — I need to purchase\\n2️⃣ *SELL* — I have products to sell\\n3️⃣ *SERVICE NEED* — I need a service\\n4️⃣ *SERVICE OFFER* — I provide a service\\n\\n_Reply: 1, 2, 3, or 4_`;\n          sessionData.flow = 'flow2a';\n        }\n      }\n    } else if (msgText === '3') {\n      responseMsg = `🔍 *Find a Lead*\\n\\n🚧 Coming soon!\\n\\nThis feature will let you browse and respond to live requirements posted by other RIFAH members.\\n\\nReply *MENU* to go back.`;\n    } else if (['4','5'].includes(msgText)) {\n      responseMsg = `🚧 This feature is coming soon!\\n\\nReply *1* to register your business.`;\n    } else {\n      if (memberExists) {\n        responseMsg = `👋 Welcome back, *${member.full_name}*!\n\n🪪 Your RIFAH ID: *${member.rifah_id}*\n⭐ Membership: ${member.membership_tier}\n\nWhat would you like to do?\n\n1️⃣ Update my profile\n2️⃣ View current info\n\n_Reply 1 or 2_`;\n        nextStep = 'EXISTING_CHOICE';\n        sessionData.existing_member_id = member.name;\n    sessionData.existing_rifah_id = member.rifah_id;\n      } else {\n        responseMsg = mainMenu();\n        nextStep = 'MENU';\n      }\n    }\n    break;\n\n  case 'EXISTING_CHOICE':\n    if (msgText === '1') {\n      responseMsg = `✏️ Let's update your profile!\\n\\n*Question 1 of 6*\\n\\n👤 What is your *full name*?\\n_(Current: ${member ? member.full_name : 'N/A'})_`;\n      nextStep = 'Q1';\n      sessionData.is_update = true;\n    } else if (msgText === '2') {\n      const m = member || {};\n      responseMsg = `📋 *Your Current RIFAH Profile*\\n\\n🪪 ID: *${m.rifah_id || 'N/A'}*\\n👤 Name: ${m.full_name || 'N/A'}\\n🏢 Business: ${m.business_name || 'N/A'}\\n📍 Location: ${m.city_state || 'N/A'}\\n🏭 Industry: ${m.industry || 'N/A'}\\n⭐ Tier: ${m.membership_tier || 'N/A'}\\n📊 Status: ${m.status || 'N/A'}\\n🌐 RifahMart: ${m.rifahmart_url || 'Pending'}\\n\\nReply *1* for main menu.`;\n      nextStep = 'MENU';\n    } else {\n      responseMsg = `Please reply *1* to update profile or *2* to view info.`;\n    }\n    break;\n\n  case 'Q1':\n    if (!rawTextOriginal || rawTextOriginal.length < 2) {\n      responseMsg = `❌ Please enter a valid full name.\\n\\n👤 What is your *full name*?`;\n    } else {\n      sessionData.full_name = rawTextOriginal;\n      responseMsg = `✅ Got it, *${rawTextOriginal}*!\\n\\n*Question 2 of 6*\\n\\n🏢 What is your *business name*?`;\n      nextStep = 'Q2';\n    }\n    break;\n\n  case 'Q2':\n    if (!rawTextOriginal || rawTextOriginal.length < 2) {\n      responseMsg = `❌ Please enter a valid business name.\\n\\n🏢 What is your *business name*?`;\n    } else {\n      sessionData.business_name = rawTextOriginal;\n      responseMsg = `✅ Got it!\\n\\n*Question 3 of 6*\\n\\n📍 Which *city and state* is your business located in?\\n\\n_Example: Pune, Maharashtra_`;\n      nextStep = 'Q3';\n    }\n    break;\n\n  case 'Q3':\n    if (!rawTextOriginal || rawTextOriginal.length < 3) {\n      responseMsg = `❌ Please enter your city and state.\\n\\n📍 Which *city and state* are you in?\\n_Example: Pune, Maharashtra_`;\n    } else {\n      sessionData.city_state = rawTextOriginal;\n      responseMsg = `✅ Got it!\\n\\n*Question 4 of 6*\\n\\n🏭 What is your *industry / business type*?\\n\\n_Examples: Manufacturing, Trading, Services, Retail, Export-Import, IT, Healthcare, Food & Beverages_`;\n      nextStep = 'Q4';\n    }\n    break;\n\n  case 'Q4':\n    if (!rawTextOriginal || rawTextOriginal.length < 2) {\n      responseMsg = `❌ Please enter your industry type.\\n\\n🏭 What is your *industry / business type*?`;\n    } else {\n      sessionData.industry = rawTextOriginal;\n      responseMsg = `✅ Got it!\\n\\n*Question 5 of 6*\\n\\n📅 How many *years* has your business been operating?\\n\\n_Reply with a number (e.g., 5)_`;\n      nextStep = 'Q5';\n    }\n    break;\n\n  case 'Q5':\n    const yearsNum = parseInt(msgText.replace(/[^0-9]/g, ''));\n    if (isNaN(yearsNum) || yearsNum < 0 || yearsNum > 200) {\n      responseMsg = `❌ Please enter a valid number of years.\\n\\n📅 How many *years* has your business been operating?`;\n    } else {\n      sessionData.years_operating = yearsNum;\n      responseMsg = `✅ Got it!\\n\\n*Question 6 of 6*\\n\\n📱 Please *confirm your WhatsApp number*:\\n\\n*+${phone}*\\n\\nReply *YES* to confirm, or type a different number.`;\n      nextStep = 'Q6';\n    }\n    break;\n\n  case 'Q6':\n    if (msgText === 'YES' || msgText === 'Y') {\n      sessionData.confirmed_phone = phone;\n      responseMsg = `✅ Number confirmed: *+${phone}*\\n\\n📄 *Step 3: Document Verification*\\n\\nPlease upload your *business verification document*:\\n\\n• Udyam Registration Certificate\\n• OR GST Registration Certificate\\n\\n_Accepted: PDF, JPG, PNG_`;\n      nextStep = 'DOC_UPLOAD';\n    } else if (/^[0-9]{10,13}$/.test(msgText.replace(/[^0-9]/g, ''))) {\n      sessionData.confirmed_phone = msgText.replace(/[^0-9]/g, '');\n      responseMsg = `✅ Using number: *+${sessionData.confirmed_phone}*\\n\\n📄 *Step 3: Document Verification*\\n\\nPlease upload your *business verification document*:\\n\\n• Udyam Registration Certificate\\n• OR GST Registration Certificate\\n\\n_Accepted: PDF, JPG, PNG_`;\n      nextStep = 'DOC_UPLOAD';\n    } else {\n      responseMsg = `Please reply *YES* to confirm +${phone}, or enter your correct 10-digit number.`;\n    }\n    break;\n\n  case 'DOC_UPLOAD':\n    if (hasMedia && mediaId) {\n      sessionData.doc_media_id = mediaId;\n      sessionData.doc_filename = mediaFilename;\n      sessionData.doc_media_type = msgType;\n      sessionData.doc_mime = mediaMimeType;\n      responseMsg = `✅ Document received!\\n\\n📦 *Step 4: Product Materials*\\n_(Optional but recommended)_\\n\\nUpload your product materials to attract more buyers:\\n\\n• Product catalogs (PDF)\\n• Product images (JPG/PNG)\\n• Brochures / marketing materials\\n\\n_You can upload multiple files._\\n_Reply *SKIP* to skip, or *DONE* when finished uploading._`;\n      nextStep = 'PRODUCT_UPLOAD';\n      action = 'download_doc';\n      actionData = { media_id: mediaId, media_type: msgType, filename: mediaFilename };\n    } else {\n      responseMsg = `❌ Please upload your document as a file.\\n\\n📄 Upload your *Udyam Registration* or *GST Certificate* (PDF, JPG, or PNG):`;\n    }\n    break;\n\n  case 'PRODUCT_UPLOAD':\n    const pMaterials = sessionData.product_materials || [];\n    if (msgText === 'SKIP' || msgText === 'DONE') {\n      sessionData.product_materials = pMaterials;\n      responseMsg = membershipMenu();\n      nextStep = 'TIER_SELECT';\n    } else if (hasMedia && mediaId) {\n      pMaterials.push({ media_id: mediaId, type: msgType, filename: mediaFilename });\n      sessionData.product_materials = pMaterials;\n      const count = pMaterials.length;\n      responseMsg = `✅ File ${count} received!\\n\\nUpload another file, or reply *DONE* when finished.`;\n      nextStep = 'PRODUCT_UPLOAD';\n      action = 'download_doc';\n      actionData = { media_id: mediaId, media_type: msgType, filename: mediaFilename };\n    } else {\n      responseMsg = `Please upload a product file (PDF/JPG/PNG), or reply *SKIP* to skip / *DONE* if finished.`;\n    }\n    break;\n\n  case 'TIER_SELECT':\n    if (msgText === 'FREE') {\n      sessionData.tier = 'FREE';\n      responseMsg = '⏳ Processing your registration...';\n      nextStep = 'PROCESSING';\n      action = 'create_free_member';\n      actionData = { ...sessionData };\n    } else if (msgText === 'PREMIUM') {\n      sessionData.tier = 'PREMIUM';\n      responseMsg = `💳 *Premium Membership: ₹3,000/year*\\n\\nPlease make payment to:\\n\\n🔸 *UPI ID:* rifah@upi\\n🔸 *Bank Transfer:*\\n   Account: RIFAH Chamber of Commerce\\n   A/C No: 1234567890\\n   IFSC: HDFC0001234\\n   Bank: HDFC Bank\\n\\nAfter payment, please:\\n📸 Upload *payment screenshot*\\nOR\\n💬 Send *transaction ID / UTR number*\\n\\n_We verify within 2 hours._`;\n      nextStep = 'PAYMENT_WAIT';\n    } else {\n      responseMsg = membershipMenu();\n    }\n    break;\n\n  case 'PAYMENT_WAIT':\n    if (hasMedia && mediaId) {\n      sessionData.payment_proof_id = mediaId;\n      sessionData.payment_type = 'screenshot';\n      responseMsg = `✅ Payment screenshot received!\\n\\n⏳ *Verifying your payment...*\\n\\nOur team will confirm within *2 hours*.\\nYou'll receive a WhatsApp confirmation once verified.\\n\\nThank you for choosing RIFAH Premium! 🙏`;\n      nextStep = 'PAYMENT_PENDING';\n      action = 'create_premium_pending';\n      actionData = { ...sessionData };\n    } else if (rawTextOriginal.length >= 8) {\n      sessionData.payment_transaction_id = rawTextOriginal;\n      sessionData.payment_type = 'transaction_id';\n      responseMsg = `✅ Transaction ID received: *${rawTextOriginal}*\\n\\n⏳ *Verifying your payment...*\\n\\nOur team will confirm within *2 hours*.\\nYou'll receive a WhatsApp confirmation once verified.\\n\\nThank you for choosing RIFAH Premium! 🙏`;\n      nextStep = 'PAYMENT_PENDING';\n      action = 'create_premium_pending';\n      actionData = { ...sessionData };\n    } else {\n      responseMsg = `Please upload your *payment screenshot* or send your *transaction ID / UTR number*.\\n\\n💳 UPI: rifah@upi`;\n    }\n    break;\n\n  case 'PAYMENT_PENDING':\n    responseMsg = `⏳ Your payment is being verified. You'll receive confirmation shortly.\\n\\nIf you have questions, contact us directly.`;\n    break;\n\n  case 'PROCESSING':\n    responseMsg = `⏳ Processing your registration...`;\n    break;\n\n\n  case 'COMPLETED':\n    sessionData = { phone };\n    if (memberExists) {\n      responseMsg = `👋 Welcome back, *${member.full_name}*!\n\n🪪 Your RIFAH ID: *${member.rifah_id}*\n⭐ Membership: ${member.membership_tier}\n\nWhat would you like to do?\n\n1️⃣ Update my profile\n2️⃣ View current info\n\n_Reply 1 or 2_`;\n      nextStep = 'EXISTING_CHOICE';\n      sessionData.existing_member_id = member.name;\n      sessionData.existing_rifah_id = member.rifah_id;\n    } else {\n      responseMsg = mainMenu();\n      nextStep = 'MENU';\n    }\n    break;\n\n\n  // ─── LEAD COLLECTION STEPS (Free & Premium) ─────────────────────────────\n  case 'LEAD_TYPE': {\n    const typeMap = { '1':'BUY', '2':'SELL', '3':'SERVICE NEED', '4':'SERVICE OFFER',\n                      'BUY':'BUY', 'SELL':'SELL', 'SERVICE NEED':'SERVICE NEED', 'SERVICE OFFER':'SERVICE OFFER' };\n    const type = typeMap[msgText] || typeMap[rawTextOriginal.toUpperCase().trim()];\n    if (type) {\n      sessionData.lead_type = type;\n      const emoji = { BUY:'🛒', SELL:'💰', 'SERVICE NEED':'🔧', 'SERVICE OFFER':'🛠️' }[type];\n      responseMsg = `✅ Got it! You selected: *${emoji} ${type}*\\n\\n📝 *Please describe what you need/offer:*\\n_(Minimum 10 words)_\\n\\n*Example:*\\n_\"Need 5000 plastic bottles, 500ml capacity, food-grade PET material for juice packaging business in Pune\"_`;\n      nextStep = 'LEAD_DESC';\n    } else {\n      responseMsg = `📋 *Share Your Requirement*\\n\\nWhat type of requirement do you have?\\n\\n1️⃣ *BUY* - I need to purchase\\n2️⃣ *SELL* - I have products to sell\\n3️⃣ *SERVICE NEED* - I need a service\\n4️⃣ *SERVICE OFFER* - I provide a service\\n\\n_Reply: BUY, SELL, SERVICE NEED, SERVICE OFFER or 1-4_`;\n    }\n    break;\n  }\n\n  case 'LEAD_DESC': {\n    const wordCount = rawTextOriginal.trim().split(/\\s+/).filter(w => w.length > 0).length;\n    if (wordCount >= 10) {\n      sessionData.lead_description = rawTextOriginal.trim();\n      responseMsg = `✅ Got it!\\n\\n📍 *Which city/cities are you looking for?*\\n\\n*Examples:*\\n• Single city: \"Pune\"\\n• Multiple: \"Pune, Mumbai, Nashik\"\\n• State-wide: \"Maharashtra\"\\n• Pan-India: \"All India\"\\n\\n_Please specify location:_`;\n      nextStep = 'LEAD_LOC';\n    } else {\n      responseMsg = `⚠️ Please provide more details *(minimum 10 words required)*\\n\\nYou provided ${wordCount} word${wordCount === 1 ? '' : 's'}. Please describe your requirement in more detail.`;\n    }\n    break;\n  }\n\n  case 'LEAD_LOC': {\n    if (rawTextOriginal.trim().length >= 2) {\n      sessionData.lead_location = rawTextOriginal.trim();\n      responseMsg = `✅ Got it!\\n\\n⏰ *How urgent is this requirement?*\\n\\n1️⃣ 🔴 *URGENT* - Need immediately\\n2️⃣ 📅 *THIS WEEK* - Within 7 days\\n3️⃣ 📆 *THIS MONTH* - Within 30 days\\n4️⃣ 🕐 *FLEXIBLE* - No rush\\n\\n_Reply: URGENT, THIS WEEK, THIS MONTH, FLEXIBLE or 1-4_`;\n      nextStep = 'LEAD_URGENCY';\n    } else {\n      responseMsg = `⚠️ Please enter a valid location (minimum 2 characters).`;\n    }\n    break;\n  }\n\n  case 'LEAD_URGENCY': {\n    const urgencyMap = { '1':'URGENT', '2':'THIS WEEK', '3':'THIS MONTH', '4':'FLEXIBLE',\n                         'URGENT':'URGENT', 'THIS WEEK':'THIS WEEK', 'THIS MONTH':'THIS MONTH', 'FLEXIBLE':'FLEXIBLE' };\n    const urgency = urgencyMap[msgText];\n    if (urgency) {\n      sessionData.lead_urgency = urgency;\n      responseMsg = `✅ Got it!\\n\\n💰 *What's your budget range?* _(Optional)_\\n\\n*Examples:*\\n• \"₹50,000 - ₹1,00,000\"\\n• \"₹5 lakh\"\\n• \"Negotiable\"\\n\\n_Type SKIP to skip this question_`;\n      nextStep = 'LEAD_BUDGET';\n    } else {\n      responseMsg = `⚠️ Please select a valid urgency level.\\n\\n1️⃣ URGENT\\n2️⃣ THIS WEEK\\n3️⃣ THIS MONTH\\n4️⃣ FLEXIBLE`;\n    }\n    break;\n  }\n\n  case 'LEAD_BUDGET': {\n    sessionData.lead_budget = msgText === 'SKIP' ? null : rawTextOriginal.trim();\n    sessionData.phone = phone;\n    if (!member) {\n      responseMsg = `⚠️ You need to be a registered RIFAH member to share leads.\\n\\nPlease register first by sending *Hi* and selecting *Register*.`;\n      nextStep = 'IDLE';\n    } else {\n      const isPremium = member.membership_tier === 'PREMIUM' && member.status === 'Active Premium';\n      sessionData.member_id = member.rifah_id || member.name;\n      sessionData.member_name = member.business_name || member.full_name;\n      sessionData.is_premium = isPremium;\n      action = isPremium ? 'gen_ai_q_prem' : 'gen_ai_q_free';\n      actionData = { ...sessionData };\n      responseMsg = `🤖 *AI Assistant*\\n\\nPerfect! Generating smart qualification questions...\\n\\n⏳ Please wait a moment.`;\n      nextStep = 'AI_Q1';\n    }\n    break;\n  }\n\n  case 'AI_Q1':\n  case 'AI_Q2':\n  case 'AI_Q3':\n  case 'AI_Q4':\n  case 'AI_Q5':\n  case 'AI_Q6': {\n    const qNum = parseInt(currentStep.replace('AI_Q',''));\n    const wordCount2 = rawTextOriginal.trim().split(/\\s+/).filter(w => w.length > 0).length;\n    if (wordCount2 < 1) {\n      responseMsg = `⚠️ Please provide a valid answer.`;\n      break;\n    }\n    sessionData[`ai_answer_${qNum}`] = rawTextOriginal.trim();\n\n    const aiQuestions = sessionData.ai_questions || [];\n    const totalQ = aiQuestions.length;\n    const nextQNum = qNum + 1;\n\n    if (nextQNum <= totalQ && aiQuestions[nextQNum - 1]) {\n      sessionData[`ai_question_${nextQNum}`] = aiQuestions[nextQNum - 1];\n      responseMsg = `✅ Got it!\\n\\n*Question ${nextQNum} of ${totalQ}:*\\n${aiQuestions[nextQNum - 1]}`;\n      nextStep = `AI_Q${nextQNum}`;\n    } else {\n      // All questions answered - route by membership tier\n      const isPrem = sessionData.is_premium;\n      action = isPrem ? 'create_premium_lead' : 'create_lead';\n      actionData = { ...sessionData };\n      responseMsg = isPrem\n        ? `✅ *All details captured!*\\n\\n⭐ *PREMIUM Processing:*\\n🔍 Searching 1 lakh+ businesses...\\n📊 Running smart matching algorithm...\\n\\n_Results in 5-10 seconds_`\n        : `✅ *All details captured!*\\n\\nCreating your lead... ⏳`;\n      nextStep = isPrem ? 'VENDOR_SELECTION' : 'LEAD_CREATE';\n    }\n    break;\n  }\n\n  case 'LEAD_CREATE': {\n    // Processing state — show wait message\n    responseMsg = `⏳ Still processing your request. Please wait a moment...`;\n    break;\n  }\n\n  // ── VENDOR FLOW ─────────────────────────────────────────────\n\n  // ─── PREMIUM: VENDOR SELECTION & CONFIRM ────────────────────────────────\n  case 'VENDOR_SELECTION': {\n    const matchedVendors = sessionData.matched_vendors || [];\n\n    // If no vendors yet — matching is still running or zero results\n    if (!matchedVendors.length) {\n      responseMsg = `🔍 Still searching for matches... Please wait a moment and try again.`;\n      break;\n    }\n\n    // Parse selection: \"1,2,3\" or \"1-5\" or \"ALL\"\n    let selectedIndices = [];\n    const upperMsg2 = rawTextOriginal.trim().toUpperCase();\n\n    if (upperMsg2 === 'ALL') {\n      selectedIndices = matchedVendors.map((_, i) => i);\n    } else {\n      const parts = upperMsg2.split(',');\n      for (const part of parts) {\n        const trimmed = part.trim();\n        const rangeParts = trimmed.split('-');\n        if (rangeParts.length === 2 && !isNaN(rangeParts[0]) && !isNaN(rangeParts[1])) {\n          const start = parseInt(rangeParts[0]) - 1;\n          const end = parseInt(rangeParts[1]) - 1;\n          const lo = Math.min(start, end);\n          const hi = Math.max(start, end);\n          for (let i = lo; i <= hi && i < matchedVendors.length; i++) {\n            if (i >= 0) selectedIndices.push(i);\n          }\n        } else {\n          const idx = parseInt(trimmed) - 1;\n          if (!isNaN(idx) && idx >= 0 && idx < matchedVendors.length) {\n            selectedIndices.push(idx);\n          }\n        }\n      }\n      selectedIndices = [...new Set(selectedIndices)]; // deduplicate\n    }\n\n    if (!selectedIndices.length) {\n      responseMsg = `❌ Invalid selection. Please reply with:\\n• Numbers: \"1,2,3\"\\n• Range: \"1-5\"\\n• All: \"ALL\"\\n\\nAvailable: 1 to ${matchedVendors.length}`;\n      break;\n    }\n\n    const selectedVendors = selectedIndices.map(i => matchedVendors[i]);\n    sessionData.selected_vendors = selectedVendors;\n\n    const confirmList = selectedVendors.map((v, i) =>\n      `${i+1}. ${v.business_name}, ${v.city_state} (Match: ${v.match_score}/100)`\n    ).join('\\n');\n\n    responseMsg = `✅ You selected *${selectedVendors.length} vendor(s)*:\\n\\n${confirmList}\\n\\nProceed? Reply:\\n*YES* — Send personalized introductions\\n*CHANGE* — Re-select vendors`;\n    nextStep = 'VENDOR_CONFIRM';\n    break;\n  }\n\n  case 'VENDOR_CONFIRM': {\n    if (msgText === 'CHANGE') {\n      const matchedVendors = sessionData.matched_vendors || [];\n      const listMsg = matchedVendors.map((v, i) =>\n        `${i+1}. *${v.business_name}*, ${v.city_state}\\n   Score: ${v.match_score}/100 | ${v.industry}`\n      ).join('\\n');\n      responseMsg = `📋 *Matched Vendors:*\\n\\n${listMsg}\\n\\nReply with numbers (e.g. \"1,2,3\"), a range (e.g. \"1-5\"), or \"ALL\":`;\n      nextStep = 'VENDOR_SELECTION';\n    } else if (msgText === 'YES') {\n      action = 'send_introductions';\n      actionData = { selected_vendors: sessionData.selected_vendors || [], lead_id: sessionData.premium_lead_id, phone };\n      responseMsg = `⭐ *Sending PREMIUM introductions...*\\n\\nEach vendor receives a personalized message with your requirements.\\nYou'll be notified when vendors respond.\\n\\n_Introductions being sent now..._`;\n      nextStep = 'COMPLETED_BUYER';\n    } else {\n      responseMsg = `Please reply *YES* to send introductions or *CHANGE* to re-select vendors.`;\n    }\n    break;\n  }\n\n  // ─── VENDOR STEPS (tier-aware) ──────────────────────────────────────────\n  case 'VENDOR_INTRO': {\n    if (msgText === 'YES') {\n      if (!member) {\n        responseMsg = `⚠️ *Registration Required*\\n\\nYou need to be a RIFAH member to respond to leads.\\n\\nPlease send *Hi* to register.`;\n        nextStep = 'IDLE';\n      } else {\n        action = sessionData.is_premium ? 'gen_vendor_q_prem' : 'gen_vendor_q_free';\n        actionData = { ...sessionData, vendor_id: member.rifah_id || member.name, vendor_name: member.business_name || member.full_name, vendor_phone: phone };\n        sessionData.vendor_id = member.rifah_id || member.name;\n        sessionData.vendor_name = member.business_name || member.full_name;\n        responseMsg = `🤖 *Vendor Qualification*\\n\\nI'll ask 6 quick questions to validate your capability.\\n\\n⏳ Preparing questions...`;\n        nextStep = 'VENDOR_Q1';\n      }\n    } else {\n      responseMsg = `👋 *Interested in this lead?*\\n\\nReply *YES* to start vendor qualification.\\nReply *NO* to skip.`;\n      if (msgText === 'NO') { nextStep = 'IDLE'; responseMsg = `No problem! You can respond to other leads anytime.`; }\n    }\n    break;\n  }\n\n  case 'VENDOR_Q1':\n  case 'VENDOR_Q2':\n  case 'VENDOR_Q3':\n  case 'VENDOR_Q4':\n  case 'VENDOR_Q5':\n  case 'VENDOR_Q6': {\n    const vqNum = parseInt(currentStep.replace('VENDOR_Q',''));\n    sessionData[`vendor_answer_${vqNum}`] = rawTextOriginal.trim();\n\n    const vendorQs = sessionData.vendor_questions || [];\n    const totalVQ = Math.min(vendorQs.length, 6);\n    const nextVQ = vqNum + 1;\n\n    if (nextVQ <= totalVQ) {\n      const qObj = vendorQs[nextVQ - 1];\n      const qText = typeof qObj === 'object' ? qObj.q : qObj;\n      const qType = typeof qObj === 'object' ? qObj.type : 'text';\n      sessionData[`vendor_question_${nextVQ}`] = qText;\n      responseMsg = `✅ Got it!\\n\\n*Question ${nextVQ} of ${totalVQ}:*\\n${qText}\\n\\n${qType === 'yes_no' ? '_Reply: YES or NO_' : '_Please specify:_'}`;\n      nextStep = `VENDOR_Q${nextVQ}`;\n    } else {\n      // Calculate score\n      action = sessionData.is_premium ? 'calc_score_prem' : 'calc_score_free';\n      actionData = { ...sessionData };\n      responseMsg = `✅ *All questions answered!*\\n\\nCalculating your compatibility score... 📊`;\n      nextStep = 'VENDOR_SCORE';\n    }\n    break;\n  }\n\n  case 'VENDOR_SCORE': {\n    if (msgText === 'SUBMIT') {\n      action = sessionData.is_premium ? 'submit_interest_prem' : 'submit_interest_free';\n      actionData = { ...sessionData };\n      responseMsg = `⏳ Submitting your interest...`;\n      nextStep = 'VENDOR_SUBMIT';\n    } else if (msgText === 'CANCEL') {\n      responseMsg = `Understood! You can respond to other leads anytime.`;\n      nextStep = 'IDLE';\n    } else {\n      const score = sessionData.compatibility_score || 0;\n      const emoji = score >= 80 ? '🌟🌟🌟' : score >= 70 ? '🌟🌟' : score >= 50 ? '🌟' : '⚠️';\n      responseMsg = `📊 *Match Analysis*\\n\\nCompatibility Score: *${score}/100* ${emoji}\\n\\n${score >= 70 ? '🌟 Excellent match!' : score >= 50 ? '✅ Good fit.' : '⚠️ Low match score.'}\\n\\nReply *SUBMIT* to express interest\\nReply *CANCEL* to skip`;\n    }\n    break;\n  }\n\n  case 'VENDOR_SUBMIT': {\n    responseMsg = `⏳ Processing your submission...`;\n    break;\n  }\n\n  default: {\n    sessionData = { phone };\n    responseMsg = mainMenu();\n    nextStep = 'MENU';\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    phone,\n    responseMsg,\n    nextStep,\n    action,\n    actionData: JSON.stringify(actionData),\n    sessionData: JSON.stringify(sessionData),\n    sessionName,\n    currentStep,\n    msgType,\n    hasMedia,\n    mediaId,\n    shouldSendMsg: responseMsg.length > 0,\n    skip: false\n  }\n}];\n"
+      },
+      "id": "e68e231f-36b3-43be-9649-8350b37126ef",
+      "name": "State Machine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.shouldSendMsg }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "4c687ec0-2e9e-4fb8-8dda-762689836372",
+              "leftValue": "={{ $json.shouldSendMsg }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "ee24b9f7-1242-480d-8e19-5fe42c498d41",
+      "name": "IF Should Send Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('State Machine').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('State Machine').item.json.responseMsg) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "e9d35354-776c-44fd-af77-d323f98cf5c3",
+      "name": "Send WhatsApp Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1568,
+        224
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Determine if we should POST (new) or PUT (update) session\nconst smData = $('State Machine').first().json;\nconst sessionName = smData.sessionName;\n\nreturn [{\n  json: {\n    isNew: !sessionName,\n    sessionName,\n    phone: smData.phone,\n    nextStep: smData.nextStep,\n    sessionData: smData.sessionData,\n    now: new Date().toISOString().replace('T', ' ').substring(0, 19)\n  }\n}];\n"
+      },
+      "id": "f8fa814d-57a8-4117-a97a-de3142087cad",
+      "name": "Prepare Session Upsert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c3",
+              "leftValue": "={{ $json.isNew }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "38ac5af9-dee4-4637-9616-87688ae01fe2",
+              "leftValue": "={{ $json.isNew }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "eb164af7-af09-4b42-b366-928dd3265e87",
+      "name": "IF New Session",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"doctype\": \"RIFAH Session\",\n  \"phone_number\": \"{{ $json.phone }}\",\n  \"current_step\": \"{{ $json.nextStep }}\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"status\": \"Active\",\n  \"last_activity\": \"{{ $json.now }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "d51acd4c-00f2-46ac-9481-f4eec24d4c7b",
+      "name": "Create Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1792,
+        320
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"{{ $json.nextStep }}\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"last_activity\": \"{{ $json.now }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "0b8ed6a6-8444-40d0-9a67-443b1800dbf1",
+      "name": "Update Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1792,
+        512
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "create_free_member",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create_free"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "create_premium_pending",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create_premium"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r3",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "download_doc",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "download_doc"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-create_lead",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "create_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create_lead"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-gen_ai_q_free",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "gen_ai_q_free",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gen_ai_q_free"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-gen_ai_q_prem",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "gen_ai_q_prem",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gen_ai_q_prem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-create_premium_lead",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "create_premium_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create_premium_lead"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-send_introductions",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "send_introductions",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "send_introductions"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-vendor_lookup_free",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "vendor_lookup_free",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "vendor_lookup_free"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-vendor_lookup_prem",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "vendor_lookup_prem",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "vendor_lookup_prem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-gen_vendor_q_free",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "gen_vendor_q_free",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gen_vendor_q_free"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-gen_vendor_q_prem",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "gen_vendor_q_prem",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gen_vendor_q_prem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-calc_score_free",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "calc_score_free",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "calc_score_free"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-calc_score_prem",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "calc_score_prem",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "calc_score_prem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-submit_interest_free",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "submit_interest_free",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "submit_interest_free"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-submit_interest_prem",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "submit_interest_prem",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "submit_interest_prem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r-admin_approval",
+                    "leftValue": "={{ $('State Machine').item.json.action }}",
+                    "rightValue": "admin_approval",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "admin_approval"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c7b861d-eb5e-463d-a6d6-ba6ac65b177e",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1344,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "[[\"membership_tier\",\"=\",\"FREE\"]]"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\"]"
+            },
+            {
+              "name": "limit_page_length",
+              "value": "999"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "8cb4ac09-99a1-4c99-bd11-eb645c0bfc45",
+      "name": "Get Free Member Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1568,
+        704
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Generate RIFAH ID and build member payload for FREE tier\nconst stateMachineData = $('State Machine').first().json;\nconst countResult = $input.first().json;\n\nconst actionData = JSON.parse(stateMachineData.actionData || '{}');\nconst existingCount = countResult?.data?.length || 0;\nconst newIndex = String(existingCount + 1).padStart(4, '0');\nconst year = new Date().getFullYear();\nconst rifah_id = `RIF-FREE-${year}-${newIndex}`;\n\n// Build business name slug for RifahMart URL\nconst slug = (actionData.business_name || 'business')\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s]/g, '')\n  .replace(/\\s+/g, '-')\n  .substring(0, 50);\n\nconst rifahmart_url = `https://rifahmart.com/${rifah_id}/${slug}`;\n\nconst payload = {\n  doctype: 'RIFAH Member',\n  rifah_id,\n  full_name: actionData.full_name || '',\n  whatsapp_number: actionData.phone || stateMachineData.phone,\n  business_name: actionData.business_name || '',\n  city_state: actionData.city_state || '',\n  industry: actionData.industry || '',\n  years_operating: actionData.years_operating || 0,\n  membership_tier: 'FREE',\n  status: 'Pending Admin Review',\n  rifahmart_url,\n  rifahmart_status: 'Published',\n  registration_date: new Date().toISOString().replace('T', ' ').substring(0, 19)\n};\n\nreturn [{\n  json: {\n    payload,\n    rifah_id,\n    rifahmart_url,\n    phone: stateMachineData.phone,\n    business_name: actionData.business_name || '',\n    city_state: actionData.city_state || '',\n    industry: actionData.industry || '',\n    full_name: actionData.full_name || ''\n  }\n}];\n"
+      },
+      "id": "179d899f-2a69-4bae-a040-2842a5fbe91e",
+      "name": "Build Free Member Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "23e2791f-4798-48e0-8520-0b6ca9b67366",
+      "name": "Create Free Member in ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2016,
+        704
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Build Free Member Data').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"✅ *Registration Complete!*\\n\\n🪪 Your RIFAH ID: *{{ $('Build Free Member Data').item.json.rifah_id }}*\\n\\n✓ Profile created\\n✓ RifahMart page: {{ $('Build Free Member Data').item.json.rifahmart_url }}\\n✓ Admin will add you to 2-3 relevant WhatsApp groups within 24 hours\\n\\nYou'll receive a notification once added to groups.\\n\\n_Welcome to RIFAH Connect!_ 🎉\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "aa3f3401-79ff-4cab-9308-1c223628e6b6",
+      "name": "Send Free Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2240,
+        608
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $env.RIFAH_ADMIN_PHONE || '918147317832' }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"🔔 *New FREE Registration*\\n\\n🪪 ID: {{ $('Build Free Member Data').item.json.rifah_id }}\\n👤 {{ $('Build Free Member Data').item.json.full_name }}\\n🏢 {{ $('Build Free Member Data').item.json.business_name }}\\n📍 {{ $('Build Free Member Data').item.json.city_state }}\\n🏭 {{ $('Build Free Member Data').item.json.industry }}\\n📱 {{ $('Build Free Member Data').item.json.phone }}\\n\\n⚡ Action Required (SLA: 24h):\\nAdd to 2-3 relevant WhatsApp groups\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "51e67551-687c-4ef6-8746-f2c38492d2fd",
+      "name": "Notify Admin Free",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2240,
+        800
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "[[\"membership_tier\",\"=\",\"PREMIUM\"]]"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\"]"
+            },
+            {
+              "name": "limit_page_length",
+              "value": "999"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "76c23fe4-71e6-48ba-b031-031c8f186ec1",
+      "name": "Get Premium Member Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1568,
+        992
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Generate RIFAH ID and build member payload for PREMIUM pending\nconst stateMachineData = $('State Machine').first().json;\nconst countResult = $input.first().json;\n\nconst actionData = JSON.parse(stateMachineData.actionData || '{}');\nconst existingCount = countResult?.data?.length || 0;\nconst newIndex = String(existingCount + 1).padStart(4, '0');\nconst year = new Date().getFullYear();\nconst rifah_id = `RIF-PREM-${year}-${newIndex}`;\n\nconst slug = (actionData.business_name || 'business')\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s]/g, '')\n  .replace(/\\s+/g, '-')\n  .substring(0, 50);\n\nconst rifahmart_url = `https://rifahmart.com/${rifah_id}/${slug}`;\nconst dashboard_username = actionData.phone || stateMachineData.phone;\nconst dashboard_password = 'RIFAH' + Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0').toUpperCase();\n\nconst payload = {\n  doctype: 'RIFAH Member',\n  rifah_id,\n  full_name: actionData.full_name || '',\n  whatsapp_number: actionData.phone || stateMachineData.phone,\n  business_name: actionData.business_name || '',\n  city_state: actionData.city_state || '',\n  industry: actionData.industry || '',\n  years_operating: actionData.years_operating || 0,\n  membership_tier: 'PREMIUM',\n  status: 'Payment Uploaded',\n  rifahmart_url,\n  rifahmart_status: 'Featured',\n  dashboard_username,\n  password: dashboard_password,\n  payment_transaction_id: actionData.payment_transaction_id || '',\n  registration_date: new Date().toISOString().replace('T', ' ').substring(0, 19)\n};\n\nreturn [{\n  json: {\n    payload,\n    rifah_id,\n    rifahmart_url,\n    dashboard_username,\n    password: dashboard_password,\n    phone: stateMachineData.phone,\n    business_name: actionData.business_name || '',\n    city_state: actionData.city_state || '',\n    industry: actionData.industry || '',\n    full_name: actionData.full_name || ''\n  }\n}];\n"
+      },
+      "id": "093d6f0d-cf9a-40e5-b694-9197b9a3cf50",
+      "name": "Build Premium Member Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "0eb39747-95d9-48fe-a771-cdfc10022def",
+      "name": "Create Premium Pending in ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2016,
+        992
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $env.RIFAH_ADMIN_PHONE || '918147317832' }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"🔴 *URGENT: Premium Payment Verification*\\n\\n🪪 ID: {{ $('Build Premium Member Data').item.json.rifah_id }}\\n👤 {{ $('Build Premium Member Data').item.json.full_name }}\\n🏢 {{ $('Build Premium Member Data').item.json.business_name }}\\n📍 {{ $('Build Premium Member Data').item.json.city_state }}\\n📱 {{ $('Build Premium Member Data').item.json.phone }}\\n\\n⚡ Action Required (SLA: 2h):\\n1. Verify payment in ERPNext\\n2. Change status to Active Premium\\n3. Add to 5-10 WhatsApp groups\\n\\nERPNext: http://backend:8000\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "d9bc93bc-80d5-44d3-986b-25b8290609f4",
+      "name": "Notify Admin Premium",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2240,
+        992
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{ $('State Machine').item.json.mediaId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "28f4d52b-6360-4425-9364-0abc3f97f9c0",
+      "name": "Get Media URL from Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1568,
+        1184
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "850efec5-ebba-4a11-b374-8d435a29614b",
+      "name": "Download Media from Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1792,
+        1184
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://frontend:8080/api/method/upload_file",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file"
+            },
+            {
+              "name": "is_private",
+              "value": "0"
+            },
+            {
+              "name": "folder",
+              "value": "Home/Attachments"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f56ff5bd-fa2e-4fbf-8060-cce5a539f682",
+      "name": "Upload File to ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2016,
+        1184
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        416
+      ],
+      "id": "329dbd4d-934d-4a56-8776-fc667e123762",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $('State Machine').item.json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"COMPLETED\",\n  \"status\": \"Completed\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "c9d8e7f6-a5b4-4321-dcba-fedcba987654",
+      "name": "Update Session Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2464,
+        704
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "[\"name\"]"
+            },
+            {
+              "name": "limit_page_length",
+              "value": "9999"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-15",
+      "name": "Get Lead Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const smData = $('State Machine').first().json;\nconst countResult = $input.first().json;\n\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst existingCount = countResult?.data?.length || 0;\nconst newIndex = String(existingCount + 1).padStart(4, '0');\nconst year = new Date().getFullYear();\nconst lead_id = `LEAD-FREE-${year}-${newIndex}`;\n\nconst description = actionData.lead_description || '';\nconst title = description.substring(0, 50) + (description.length > 50 ? '...' : '');\n\nconst aiQualification = {};\nfor (let i = 1; i <= 6; i++) {\n  if (actionData[`ai_question_${i}`]) aiQualification[`question_${i}`] = actionData[`ai_question_${i}`];\n  if (actionData[`ai_answer_${i}`]) aiQualification[`answer_${i}`] = actionData[`ai_answer_${i}`];\n}\n\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\n\nconst payload = {\n  doctype: 'RIFAH Lead',\n  lead_id,\n  member_id: actionData.member_id || '',\n  member_name: actionData.member_name || '',\n  member_phone: actionData.phone || smData.phone,\n  tier: 'FREE',\n  lead_type: actionData.lead_type || '',\n  title,\n  description,\n  location: actionData.lead_location || '',\n  urgency: actionData.lead_urgency || '',\n  budget: actionData.lead_budget || '',\n  ai_qualification: JSON.stringify(aiQualification),\n  status: 'Pending Review',\n  posted_to_groups: '[]',\n  interested_vendors: '[]',\n  connection_made: 0,\n  created_at: ts\n};\n\nreturn [{ json: { payload, lead_id, member_phone: actionData.phone || smData.phone, member_name: actionData.member_name || '', lead_type: actionData.lead_type || '', location: actionData.lead_location || '', urgency: actionData.lead_urgency || '', budget: actionData.lead_budget || '', description } }];\n"
+      },
+      "id": "f2a-node-16",
+      "name": "Build Lead Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-17",
+      "name": "Create Lead in ERPNext",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"918147317832\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"🔔 *NEW LEAD FOR REVIEW*\\n\\n📋 Lead ID: *{{ $('Build Lead Data').item.json.lead_id }}*\\n👤 {{ $('Build Lead Data').item.json.member_name }}\\n📞 {{ $('Build Lead Data').item.json.member_phone }}\\n\\n*Type:* {{ $('Build Lead Data').item.json.lead_type }}\\n*Description:* {{ $('Build Lead Data').item.json.description.substring(0,150) }}\\n*Location:* {{ $('Build Lead Data').item.json.location }}\\n*Urgency:* {{ $('Build Lead Data').item.json.urgency }}\\n*Budget:* {{ $('Build Lead Data').item.json.budget || 'Not specified' }}\\n\\n━━━━━━━━━━━━━━━━━━━━\\n*Actions (SLA: 4 hours):*\\nAPPROVE {{ $('Build Lead Data').item.json.lead_id }}\\nREJECT {{ $('Build Lead Data').item.json.lead_id }} [reason]\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-18",
+      "name": "Notify Admin New Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a B2B requirement qualification assistant for an Indian marketplace. Generate specific follow-up questions to understand requirements better. Return ONLY valid JSON.\"},\n    {\"role\": \"user\", \"content\": \"User requirement:\\nType: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_type : '' }}\\nDescription: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_description : '' }}\\nLocation: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_location : '' }}\\n\\nGenerate 4-5 specific follow-up questions. Return ONLY JSON:\\n{\\\"questions\\\": [\\\"Question 1?\\\", \\\"Question 2?\\\", ...]}\"}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 400,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-19",
+      "name": "Call OpenAI Free Lead Q",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OpenAI_API_Auth",
+          "name": "OpenAI API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst smData = $('State Machine').first().json;\n\nlet questions = [];\ntry {\n  const content = response.choices[0].message.content;\n  let parsed;\n  try { parsed = JSON.parse(content); }\n  catch(e) {\n    const cleaned = content.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim();\n    parsed = JSON.parse(cleaned);\n  }\n  questions = parsed.questions || [];\n  if (!questions.length) throw new Error('empty');\n} catch(e) {\n  // Fallback by lead type\n  const fallback = {\n    'BUY': ['What are the exact specifications?','What quantity do you need per order?','Any quality certifications required?','What is your delivery timeline?','Any special requirements or customization?'],\n    'SELL': ['What are the product specifications?','What is your production capacity per month?','Do you have any certifications?','What is your delivery capability?','What makes your product unique?'],\n    'SERVICE NEED': ['What is the exact scope of work?','What is the project timeline?','What level of expertise is needed?','What are the deliverables?','Any specific tools or technologies required?'],\n    'SERVICE OFFER': ['What specific services do you provide?','What is your capacity per month?','What certifications do you have?','What is your typical project timeline?','What industries have you worked with?']\n  };\n  const actionData = JSON.parse(smData.actionData || '{}');\n  questions = fallback[actionData.lead_type] || fallback['BUY'];\n}\n\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst q1 = questions[0] || 'Please provide more details about your requirement';\n\nreturn [{ json: {\n  questions,\n  q1,\n  totalQuestions: questions.length,\n  phone: smData.phone,\n  sessionName: smData.sessionName,\n  sessionData: smData.sessionData,\n  actionData: smData.actionData,\n  firstQuestion: `🤖 *AI Assistant*\\n\\nGreat! I need a few more details to find you the best matches.\\n\\nI'll ask ${questions.length} quick question${questions.length !== 1 ? 's' : ''}...\\n\\n*Question 1 of ${questions.length}:*\\n${q1}`\n}}];\n"
+      },
+      "id": "f2a-node-20",
+      "name": "Parse Free AI Lead Q",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"AI_Q1\",\n  \"session_data\": {{ JSON.stringify(JSON.stringify({ ...JSON.parse($json.sessionData || '{}'), ai_questions: $json.questions, ai_question_1: $json.q1 })) }},\n  \"last_activity\": \"{{ new Date().toISOString().replace('T',' ').substring(0,19) }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-21",
+      "name": "Store Free AI Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Parse AI Lead Questions').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Parse AI Lead Questions').item.json.firstQuestion) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-22",
+      "name": "Send Free AI Q1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"lead_id\",\"=\",JSON.parse($('State Machine').item.json.actionData || '{}').lead_id]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"lead_type\",\"title\",\"description\",\"location\",\"urgency\",\"budget\",\"member_name\",\"member_phone\",\"status\",\"tier\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-23",
+      "name": "Get Free Lead for Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"whatsapp_number\",\"=\",$('State Machine').item.json.phone]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"full_name\",\"business_name\",\"city_state\",\"industry\",\"membership_tier\",\"status\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-24",
+      "name": "Check Vendor Member",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leadResult = $('Get Lead for Vendor').first().json;\nconst vendorResult = $input.first().json;\nconst smData = $('State Machine').first().json;\n\nconst leads = leadResult?.data || [];\nconst lead = leads.length > 0 ? leads[0] : null;\n\nconst vendors = vendorResult?.data || [];\nconst vendor = vendors.length > 0 ? vendors[0] : null;\n\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst lead_id = actionData.lead_id || '';\n\nlet introMsg = '';\nif (!lead) {\n  introMsg = `❌ Lead not found: *${lead_id}*\\n\\nThis lead may have expired or been removed. Please check the lead ID and try again.`;\n} else if (lead.status === 'Closed' || lead.status === 'Cancelled') {\n  introMsg = `⚠️ This lead is no longer active.\\n\\nLead *${lead_id}* has been ${lead.status.toLowerCase()}.`;\n} else {\n  const tierBadge = lead.tier === 'PREM' ? '⭐ PREMIUM' : '🟢 FREE';\n  introMsg = `📋 *Lead Details*\\n\\n🆔 *${lead.lead_id}* ${tierBadge}\\n📌 *Type:* ${lead.lead_type}\\n📝 *Requirement:* ${lead.description}\\n\\n📍 *Location:* ${lead.location}\\n⏰ *Urgency:* ${lead.urgency}\\n💰 *Budget:* ${lead.budget || 'Not specified'}\\n\\n━━━━━━━━━━━━━━━━━━━━\\n*Are you interested in this lead?*\\n\\nReply *YES* to start vendor qualification\\nReply *NO* to skip`;\n}\n\nreturn [{\n  json: {\n    lead,\n    vendor,\n    phone,\n    lead_id,\n    introMsg,\n    sessionName: smData.sessionName,\n    sessionData: smData.sessionData\n  }\n}];\n"
+      },
+      "id": "f2a-node-25",
+      "name": "Build Free Vendor Intro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Build Vendor Intro').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Build Vendor Intro').item.json.introMsg) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-26",
+      "name": "Send Free Vendor Intro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a B2B vendor qualification assistant for an Indian marketplace. Generate vendor validation questions. Return ONLY valid JSON.\"},\n    {\"role\": \"user\", \"content\": \"Lead Details:\\nType: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_type : '' }}\\nDescription: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_description : '' }}\\nLocation: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_location : '' }}\\nBudget: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_budget : '' }}\\nUrgency: {{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_urgency : '' }}\\n\\nGenerate exactly 6 vendor validation questions. Return ONLY JSON:\\n{\\\"questions\\\": [{\\\"q\\\": \\\"Can you supply/provide this?\\\", \\\"type\\\": \\\"yes_no\\\"}, {\\\"q\\\": \\\"Do you have required certification?\\\", \\\"type\\\": \\\"yes_no\\\"}, {\\\"q\\\": \\\"What is your delivery timeline?\\\", \\\"type\\\": \\\"text\\\"}, {\\\"q\\\": \\\"What is your price/rate?\\\", \\\"type\\\": \\\"text\\\"}, {\\\"q\\\": \\\"Can you provide additional services mentioned?\\\", \\\"type\\\": \\\"yes_no\\\"}, {\\\"q\\\": \\\"Do you have past experience with similar clients?\\\", \\\"type\\\": \\\"yes_no\\\"}]}\"}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-27",
+      "name": "Call OpenAI Free Vendor Q",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OpenAI_API_Auth",
+          "name": "OpenAI API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst smData = $('State Machine').first().json;\n\nconst defaultQuestions = [\n  { q: 'Can you supply/provide this requirement?', type: 'yes_no' },\n  { q: 'Do you have the required certifications or qualifications?', type: 'yes_no' },\n  { q: 'What is your delivery/completion timeline?', type: 'text' },\n  { q: 'What is your price or rate for this requirement?', type: 'text' },\n  { q: 'Can you handle any additional services related to this?', type: 'yes_no' },\n  { q: 'Do you have past experience with similar clients or projects?', type: 'yes_no' }\n];\n\nlet questions = [];\ntry {\n  const content = response.choices[0].message.content;\n  let parsed;\n  try { parsed = JSON.parse(content); }\n  catch(e) {\n    const cleaned = content.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim();\n    parsed = JSON.parse(cleaned);\n  }\n  questions = parsed.questions || [];\n  if (!questions.length) throw new Error('empty');\n} catch(e) {\n  questions = defaultQuestions;\n}\n\n// Ensure max 6 and each has q and type\nquestions = questions.slice(0, 6).map(q => ({\n  q: typeof q === 'object' ? (q.q || q.question || String(q)) : String(q),\n  type: (typeof q === 'object' && q.type) ? q.type : 'text'\n}));\n\nconst q1 = questions[0];\nconst q1Text = q1 ? q1.q : 'Can you fulfill this requirement?';\nconst q1Type = q1 ? q1.type : 'yes_no';\n\nreturn [{ json: {\n  questions,\n  q1Text,\n  q1Type,\n  totalQuestions: questions.length,\n  phone: smData.phone,\n  sessionName: smData.sessionName,\n  sessionData: smData.sessionData,\n  actionData: smData.actionData,\n  firstQuestion: `🤖 *Vendor Qualification*\\n\\nI'll ask ${questions.length} questions to validate your capability for this lead.\\n\\n*Question 1 of ${questions.length}:*\\n${q1Text}\\n\\n${q1Type === 'yes_no' ? '_Reply: YES or NO_' : '_Please specify:_'}`\n}}];\n"
+      },
+      "id": "f2a-node-28",
+      "name": "Parse Free AI Vendor Q",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"VENDOR_Q1\",\n  \"session_data\": {{ JSON.stringify(JSON.stringify({ ...JSON.parse($json.sessionData || '{}'), vendor_questions: $json.questions, vendor_question_1: $json.q1Text })) }},\n  \"last_activity\": \"{{ new Date().toISOString().replace('T',' ').substring(0,19) }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-29",
+      "name": "Store Free Vendor Q",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Parse AI Vendor Questions').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Parse AI Vendor Questions').item.json.firstQuestion) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-30",
+      "name": "Send Free Vendor Q1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const smData = $('State Machine').first().json;\nconst actionData = JSON.parse(smData.actionData || '{}');\n\n// Scores: Q1 can supply (25), Q2 certification (20), Q3 timeline (20), Q4 price (10), Q5 extra (15), Q6 experience (10)\nlet score = 0;\n\nconst a1 = (actionData.vendor_answer_1 || '').toUpperCase();\nconst a2 = (actionData.vendor_answer_2 || '').toUpperCase();\nconst a3 = actionData.vendor_answer_3 || '';\nconst a4 = actionData.vendor_answer_4 || '';\nconst a5 = (actionData.vendor_answer_5 || '').toUpperCase();\nconst a6 = (actionData.vendor_answer_6 || '').toUpperCase();\nconst urgency = actionData.lead_urgency || 'FLEXIBLE';\n\nif (a1.includes('YES')) score += 25;\nif (a2.includes('YES')) score += 20;\n\n// Timeline check\nconst urgencyDays = { 'URGENT':3,'THIS WEEK':7,'THIS MONTH':30,'FLEXIBLE':60 }[urgency] || 30;\nconst dayMatch = a3.match(/(\\d+)\\s*days?/i);\nconst weekMatch = a3.match(/(\\d+)\\s*weeks?/i);\nconst monthMatch = a3.match(/(\\d+)\\s*months?/i);\nlet timeline = 0;\nif (a3.toLowerCase().includes('immediate') || a3.toLowerCase().includes('same day')) timeline = 1;\nelse if (dayMatch) timeline = parseInt(dayMatch[1]);\nelse if (weekMatch) timeline = parseInt(weekMatch[1]) * 7;\nelse if (monthMatch) timeline = parseInt(monthMatch[1]) * 30;\nif (timeline > 0 && timeline <= urgencyDays) score += 20;\nelse if (timeline === 0) score += 10; // partial credit for given but unparseable timeline\n\nif (a5.includes('YES')) score += 15;\nif (a6.includes('YES')) score += 10;\n\nconst scoreEmoji = score >= 80 ? '🌟🌟🌟' : score >= 70 ? '🌟🌟' : score >= 50 ? '🌟' : '⚠️';\nconst recommendation = score >= 70 ? '🌟 *This looks like an excellent match!*' : score >= 50 ? '✅ *This could be a good fit.*' : '⚠️ *Match score is low. Consider carefully before proceeding.*';\n\nconst vqs = actionData.vendor_questions || [];\nconst summaryLines = [];\nfor (let i = 1; i <= 6; i++) {\n  const q = vqs[i-1];\n  const qText = typeof q === 'object' ? q.q : (q || '');\n  const a = actionData[`vendor_answer_${i}`] || '-';\n  if (qText) summaryLines.push(`• ${qText.split('?')[0]}: ${a}`);\n}\n\nconst scoreMsg = `📊 *Match Analysis Complete*\\n\\nBased on your answers:\\n${summaryLines.join('\\n')}\\n\\n*Compatibility Score:* ${score}/100 ${scoreEmoji}\\n\\n${recommendation}\\n\\nWould you like to submit your interest to the buyer?\\n\\nReply *SUBMIT* or *CANCEL*`;\n\nreturn [{ json: {\n  score,\n  scoreMsg,\n  phone: smData.phone,\n  sessionName: smData.sessionName,\n  sessionData: JSON.stringify({ ...actionData, compatibility_score: score }),\n  lead_id: actionData.lead_id,\n  vendor_id: actionData.vendor_id,\n  vendor_name: actionData.vendor_name,\n  vendor_phone: smData.phone\n}}];\n"
+      },
+      "id": "f2a-node-31",
+      "name": "Calculate Free Vendor Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"current_step\": \"VENDOR_SCORE\",\n  \"session_data\": {{ JSON.stringify($json.sessionData) }},\n  \"last_activity\": \"{{ new Date().toISOString().replace('T',' ').substring(0,19) }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-32",
+      "name": "Update Free Session Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Calculate Vendor Score').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($('Calculate Vendor Score').item.json.scoreMsg) }}\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-33",
+      "name": "Send Free Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ $('State Machine').item.json.actionData ? JSON.parse($('State Machine').item.json.actionData).lead_id : '' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"interested_vendors\": {{ JSON.stringify(JSON.stringify([{ vendor_id: JSON.parse($('State Machine').item.json.actionData || '{}').vendor_id, vendor_name: JSON.parse($('State Machine').item.json.actionData || '{}').vendor_name, vendor_phone: $('State Machine').item.json.phone, compatibility_score: JSON.parse($('State Machine').item.json.actionData || '{}').compatibility_score || 0, submitted_at: new Date().toISOString().replace('T',' ').substring(0,19) }])) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-34",
+      "name": "Store Free Vendor Interest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"918147317832\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"🤝 *NEW VENDOR INTEREST*\\n\\n📋 Lead: *{{ JSON.parse($('State Machine').item.json.actionData || '{}').lead_id }}*\\n\\n👤 *Vendor:* {{ JSON.parse($('State Machine').item.json.actionData || '{}').vendor_name }}\\n📞 {{ $('State Machine').item.json.phone }}\\n🏢 ID: {{ JSON.parse($('State Machine').item.json.actionData || '{}').vendor_id }}\\n\\n📊 *Score:* {{ JSON.parse($('State Machine').item.json.actionData || '{}').compatibility_score || 0 }}/100\\n\\n━━━━━━━━━━━━━━━━━━━━\\nVendor has submitted interest. Review and connect with buyer if appropriate.\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-35",
+      "name": "Notify Admin Free Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('State Machine').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"✅ *Interest Submitted Successfully!*\\n\\n🎉 Your response has been recorded for lead *{{ JSON.parse($('State Machine').item.json.actionData || '{}').lead_id }}*.\\n\\n📊 *Your Score:* {{ JSON.parse($('State Machine').item.json.actionData || '{}').compatibility_score || 0 }}/100\\n\\n⏳ *What happens next?*\\n• Our team will review your submission\\n• If selected, we will connect you with the buyer\\n• You'll be notified within 24-48 hours\\n\\n_Thank you for using RIFAH Connect!_ 🙏\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2a-node-36",
+      "name": "Send Free Vendor Confirm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sm = $('State Machine').first().json;\nconst ad = JSON.parse(sm.actionData || '{}');\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\nconst phone = sm.phone;\n\nconst leadType = ad.lead_type || ad.lead_type || 'BUY';\nconst desc = ad.lead_description || '';\nconst loc = ad.lead_location || '';\nconst urgency = ad.lead_urgency || 'FLEXIBLE';\nconst budget = ad.lead_budget || null;\nconst memberId = ad.member_id || '';\nconst memberName = ad.member_name || '';\n\n// Collect AI answers\nconst aiAnswers = {};\nfor (let i = 1; i <= 6; i++) {\n  if (ad[`ai_answer_${i}`]) aiAnswers[`Q${i}`] = ad[`ai_answer_${i}`];\n}\n\nconst leadId = `LEAD-PREM-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;\nconst title = `${leadType}: ${desc.substring(0,60)}${desc.length > 60 ? '...' : ''}`;\n\nreturn [{ json: {\n  lead_id: leadId,\n  member_id: memberId,\n  member_name: memberName,\n  member_phone: phone,\n  tier: 'PREMIUM',\n  lead_type: leadType,\n  title,\n  description: desc,\n  location: loc,\n  urgency,\n  budget,\n  ai_qualification: JSON.stringify(aiAnswers),\n  status: 'Processing - Running Matching Algorithm',\n  created_at: ts,\n  posted_to_groups: '0',\n  is_premium_request: 0,\n  matched_vendors: '[]',\n  introduction_sent: '[]',\n  interested_vendors: '[]',\n  phone,\n  sd: sm.sessionData\n} }];\n"
+      },
+      "id": "f2b-node-15",
+      "name": "Build Premium Lead Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "lead_id",
+              "value": "={{ $json.lead_id }}"
+            },
+            {
+              "name": "member_id",
+              "value": "={{ $json.member_id }}"
+            },
+            {
+              "name": "member_name",
+              "value": "={{ $json.member_name }}"
+            },
+            {
+              "name": "member_phone",
+              "value": "={{ $json.member_phone }}"
+            },
+            {
+              "name": "tier",
+              "value": "PREMIUM"
+            },
+            {
+              "name": "lead_type",
+              "value": "={{ $json.lead_type }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.description }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $json.location }}"
+            },
+            {
+              "name": "urgency",
+              "value": "={{ $json.urgency }}"
+            },
+            {
+              "name": "budget",
+              "value": "={{ $json.budget }}"
+            },
+            {
+              "name": "ai_qualification",
+              "value": "={{ $json.ai_qualification }}"
+            },
+            {
+              "name": "status",
+              "value": "Processing - Running Matching Algorithm"
+            },
+            {
+              "name": "created_at",
+              "value": "={{ $json.created_at }}"
+            },
+            {
+              "name": "is_premium_request",
+              "value": "0"
+            },
+            {
+              "name": "matched_vendors",
+              "value": "[]"
+            },
+            {
+              "name": "introduction_sent",
+              "value": "[]"
+            },
+            {
+              "name": "interested_vendors",
+              "value": "[]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-16",
+      "name": "Create Premium Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"city_state\",\"like\",\"%\" + ($('Build Premium Lead Data').item.json.location.split(',')[0].trim()) + \"%\"],[\"status\",\"in\",[\"Active Free\",\"Active Premium\"]],[\"rifah_id\",\"!=\",$('Build Premium Lead Data').item.json.member_id]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"full_name\",\"business_name\",\"city_state\",\"industry\",\"membership_tier\",\"whatsapp_number\"]"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-17",
+      "name": "Get Vendors by City",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leadData = $('Build Premium Lead Data').first().json;\nconst vendorsRaw = $input.first().json?.data || [];\nconst leadLocation = (leadData.location || '').toLowerCase();\nconst leadIndustry = (leadData.lead_type || '').toLowerCase();\nconst leadDesc = (leadData.description || '').toLowerCase();\n\n// Industry keyword map for related matching\nconst industryKeywords = {\n  'packaging': ['bottle','container','packaging','box','carton','pouch','wrap'],\n  'manufacturing': ['machine','equipment','manufacturing','production','fabricat'],\n  'food': ['food','beverage','juice','snack','ingredient','grain','spice'],\n  'textile': ['fabric','cloth','textile','garment','cotton','yarn','knit'],\n  'it': ['software','website','app','development','digital','tech','cloud'],\n  'construction': ['construction','building','cement','steel','plumb','electr'],\n  'retail': ['retail','shop','store','outlet','wholesale','distribution'],\n  'trading': ['trading','export','import','wholesale','supply','procurement']\n};\n\nconst relatedIndustries = {\n  'packaging': ['manufacturing','food','retail'],\n  'food': ['packaging','retail','trading'],\n  'textile': ['manufacturing','retail','trading'],\n  'it': ['services'],\n  'construction': ['manufacturing','trading'],\n  'retail': ['trading','packaging'],\n  'trading': ['manufacturing','retail','packaging']\n};\n\nfunction getIndustryFromDesc(desc) {\n  for (const [ind, kws] of Object.entries(industryKeywords)) {\n    if (kws.some(k => desc.includes(k))) return ind;\n  }\n  return '';\n}\n\nconst detectedLeadIndustry = getIndustryFromDesc(leadDesc);\nconst cityKeyword = leadLocation.split(',')[0].trim();\n\nconst scored = vendorsRaw.map(v => {\n  let score = 0;\n  const vCity = (v.city_state || '').toLowerCase();\n  const vInd = (v.industry || '').toLowerCase();\n  const vTier = (v.membership_tier || '').toLowerCase();\n\n  // City match\n  if (vCity.includes(cityKeyword) || cityKeyword.includes(vCity.split(',')[0].trim())) score += 30;\n\n  // Industry match\n  if (detectedLeadIndustry && vInd.includes(detectedLeadIndustry)) {\n    score += 20;\n  } else if (detectedLeadIndustry) {\n    const related = relatedIndustries[detectedLeadIndustry] || [];\n    if (related.some(r => vInd.includes(r))) score += 10;\n  }\n\n  // Premium member bonus\n  if (vTier === 'premium') score += 5;\n\n  // Experience proxy (use rifah_id year if available)\n  const idYear = parseInt((v.rifah_id || '').replace(/\\D/g,'').substring(0,4));\n  if (!isNaN(idYear)) {\n    const exp = Math.max(0, new Date().getFullYear() - idYear);\n    score += Math.min(exp, 10);\n  }\n\n  return {\n    vendor_id: v.rifah_id || v.name,\n    business_name: v.business_name || v.full_name || 'Unknown',\n    city_state: v.city_state || '',\n    industry: v.industry || '',\n    tier: v.membership_tier || 'FREE',\n    phone: v.whatsapp_number || '',\n    match_score: score\n  };\n}).filter(v => v.match_score >= 40)\n  .sort((a,b) => b.match_score - a.match_score)\n  .slice(0, 10);\n\nreturn [{ json: { matched: scored, lead_id: leadData.lead_id, phone: leadData.phone, sd: leadData.sd } }];\n"
+      },
+      "id": "f2b-node-18",
+      "name": "Run Matching Algorithm",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2800,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ encodeURIComponent($json.lead_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "matched_vendors",
+              "value": "={{ JSON.stringify($json.matched) }}"
+            },
+            {
+              "name": "status",
+              "value": "Vendor Selection"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-19",
+      "name": "Store Matched Vendors in Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3000,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const matchData = $('Run Matching Algorithm').first().json;\nconst matched = matchData.matched || [];\nconst phone = matchData.phone;\nconst leadId = matchData.lead_id;\n\nlet sd = {};\ntry { sd = JSON.parse(matchData.sd || '{}'); } catch(e) {}\n\n// Update session data with matched vendors + lead ID\nsd.matched_vendors = matched;\nsd.premium_lead_id = leadId;\n\nconst isFewMatches = matched.length < 3;\n\nlet listMsg = '';\nif (matched.length > 0) {\n  const vendorLines = matched.map((v, i) =>\n    `${i+1}. *${v.business_name}*, ${v.city_state}\\n   Score: ${v.match_score}/100 | ${v.industry} | ${v.tier}`\n  ).join('\\n');\n  listMsg = `⭐ *PREMIUM Smart Match Results*\\n\\nFound *${matched.length} vendor(s)* matching your requirement:\\n\\n${vendorLines}\\n\\n${isFewMatches ? '_(Also posting to premium groups as fallback)_\\n\\n' : ''}Reply with vendor numbers to contact directly:\\n• Single: \"1\" or \"1,2,3\"\\n• Range: \"1-5\"\\n• All: \"ALL\"`;\n} else {\n  listMsg = `🔍 *No direct matches found*\\n\\nNo vendors in our database perfectly match your requirement right now.\\n\\n⭐ *Posting to 5-7 PREMIUM WhatsApp groups now...*\\nVendors will see your ⭐ PREMIUM REQUEST and respond directly.\\n\\nYou'll be notified when vendors respond.`;\n}\n\nreturn [{ json: { phone, listMsg, sd: JSON.stringify(sd), leadId, isFewMatches, matchCount: matched.length } }];\n"
+      },
+      "id": "f2b-node-20",
+      "name": "Format Vendor List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $('State Machine').item.json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "current_step",
+              "value": "VENDOR_SELECTION"
+            },
+            {
+              "name": "session_data",
+              "value": "={{ $json.sd }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-21",
+      "name": "Update Session with Matches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3400,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Format Vendor List').item.json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: $('Format Vendor List').item.json.listMsg }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-22",
+      "name": "Send Vendor List to User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3600,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f2b-c4",
+              "leftValue": "={{ $('Format Vendor List').item.json.isFewMatches }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f2b-node-23",
+      "name": "IF Few Matches",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3800,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ encodeURIComponent($('Format Vendor List').item.json.leadId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "posted_to_groups",
+              "value": "1"
+            },
+            {
+              "name": "is_premium_request",
+              "value": "1"
+            },
+            {
+              "name": "status",
+              "value": "Posted to Groups (Premium)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-24",
+      "name": "Post to Groups Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        4000,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $env.ADMIN_WHATSAPP }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '🔔 NEW PREMIUM LEAD\\n\\nLead ID: ' + $('Build Premium Lead Data').item.json.lead_id + '\\nMember: ' + $('Build Premium Lead Data').item.json.member_name + '\\nType: ' + $('Build Premium Lead Data').item.json.lead_type + '\\nLocation: ' + $('Build Premium Lead Data').item.json.location + '\\nMatches found: ' + ($('Run Matching Algorithm').item.json.matched?.length || 0) + '\\nPosted to groups: YES (few matches fallback)' }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-25",
+      "name": "Notify Admin Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        4200,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4o-mini"
+            },
+            {
+              "name": "messages",
+              "value": "={{ JSON.stringify([{role:'system',content:'You are a B2B lead qualification expert for an Indian chamber of commerce.'},{role:'user',content:'Generate 4-6 qualification questions for a ' + JSON.parse($(\\'State Machine\\').item.json.actionData).lead_type + ' lead: \"' + JSON.parse($(\\'State Machine\\').item.json.actionData).lead_description + '\" Location: ' + JSON.parse($(\\'State Machine\\').item.json.actionData).lead_location + '. Return JSON: {\"questions\":[\"q1\",\"q2\",...]}'}]) }}"
+            },
+            {
+              "name": "max_tokens",
+              "value": "300"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-26",
+      "name": "Call OpenAI Prem Lead Q",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OpenAI_API_Auth",
+          "name": "OpenAI API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst content = res?.choices?.[0]?.message?.content || '';\nconst ad = JSON.parse($('State Machine').first().json.actionData || '{}');\nconst leadType = ad.lead_type || 'BUY';\n\nconst fallbackQ = {\n  BUY: ['What quantity do you need?','What quality grade/specification is required?','What is your preferred delivery timeline?','Do you have existing suppliers?'],\n  SELL: ['What quantity is available?','What certifications does your product have?','What is your minimum order quantity?','Can you deliver pan-India?'],\n  'SERVICE NEED': ['How frequently do you need this service?','Do you have existing service providers?','What is your contract duration preference?','What are your key quality requirements?'],\n  'SERVICE OFFER': ['How many clients have you served in this domain?','What is your team size?','What is your typical turnaround time?','Which regions do you serve?']\n};\n\nlet questions = fallbackQ[leadType] || fallbackQ['BUY'];\ntry {\n  const parsed = JSON.parse(content);\n  if (parsed.questions?.length >= 3) questions = parsed.questions.slice(0,6);\n} catch(e) {\n  const match = content.match(/\\[.*?\\]/s);\n  if (match) { try { const arr = JSON.parse(match[0]); if (arr.length >= 3) questions = arr.slice(0,6); } catch(e2) {} }\n}\n\nreturn [{ json: { questions, phone: $('State Machine').first().json.phone } }];\n"
+      },
+      "id": "f2b-node-27",
+      "name": "Parse Prem AI Lead Q",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { questions, phone } = $input.first().json;\nconst sm = $('State Machine').first().json;\nlet sd = {};\ntry { sd = JSON.parse(sm.sessionData || '{}'); } catch(e) {}\nsd.ai_questions = questions;\nreturn [{ json: { questions, phone, sd: JSON.stringify(sd), q1: questions[0] } }];\n"
+      },
+      "id": "f2b-node-28",
+      "name": "Store Prem AI Questions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $('State Machine').item.json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session_data",
+              "value": "={{ $json.sd }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-29",
+      "name": "Persist Prem AI Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2800,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Store AI Questions in Session').item.json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '🤖 *Qualification Questions*\\n\\nTo find your best PREMIUM match, please answer ' + $('Store AI Questions in Session').item.json.questions.length + ' questions.\\n\\n*Q1:* ' + $('Store AI Questions in Session').item.json.q1 }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-30",
+      "name": "Send Prem AI Q1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3000,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sm = $('State Machine').first().json;\nconst ad = JSON.parse(sm.actionData || '{}');\nconst selectedVendors = ad.selected_vendors || [];\nconst leadId = ad.lead_id;\nconst buyerPhone = sm.phone;\n\n// Get lead description from session data\nlet sd = {};\ntry { sd = JSON.parse(sm.sessionData || '{}'); } catch(e) {}\n\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\nconst deadline = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString().replace('T',' ').substring(0,19);\n\nconst intros = selectedVendors.map(v => ({\n  vendor_id: v.vendor_id,\n  vendor_phone: v.phone,\n  vendor_name: v.business_name,\n  match_score: v.match_score,\n  sent_at: ts,\n  deadline,\n  status: 'Sent',\n  intro_message: `⭐ *PREMIUM LEAD MATCH* ⭐\\n\\n📋 *Requirement:* ${sd.lead_description ? sd.lead_description.substring(0,120) : 'See details'}\\n📍 *Location:* ${sd.lead_location || 'N/A'}\\n💰 *Budget:* ${sd.lead_budget || 'Negotiable'}\\n⏱️ *Urgency:* ${sd.lead_urgency || 'N/A'}\\n\\n✨ *Your Match Score: ${v.match_score}/100*\\n🏢 Matched on: city, industry\\n\\n⏰ *Response deadline: 12 hours*\\n\\nReply:\\n*INTERESTED* — Start qualification\\n*DETAILS* — See full requirements\\n*NOT NOW* — Decline`\n}));\n\nreturn intros.map(intro => ({ json: { ...intro, lead_id: leadId, buyer_phone: buyerPhone, total: selectedVendors.length } }));\n"
+      },
+      "id": "f2b-node-31",
+      "name": "Build Intro Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.vendor_phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: $json.intro_message }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-32",
+      "name": "Send Intro to Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst introsSent = items.map(item => ({\n  vendor_id: item.json.vendor_id,\n  vendor_name: item.json.vendor_name,\n  vendor_phone: item.json.vendor_phone,\n  match_score: item.json.match_score,\n  sent_at: item.json.sent_at,\n  deadline: item.json.deadline,\n  status: 'Sent'\n}));\nconst leadId = items[0]?.json.lead_id;\nconst buyerPhone = items[0]?.json.buyer_phone;\nconst total = items[0]?.json.total || introsSent.length;\nreturn [{ json: { introsSent, leadId, buyerPhone, total } }];\n"
+      },
+      "id": "f2b-node-33",
+      "name": "Collect Intro Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ encodeURIComponent($json.leadId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "introduction_sent",
+              "value": "={{ JSON.stringify($json.introsSent) }}"
+            },
+            {
+              "name": "status",
+              "value": "Introductions Sent"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-34",
+      "name": "Update Lead Intros Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2800,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.buyerPhone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '✅ *PREMIUM Introductions Sent!*\\n\\n📨 Sent personalized messages to *' + $json.total + ' vendor(s)*\\n⏰ Vendors have 12 hours to respond\\n\\nYou will be notified when vendors qualify and admin approves a connection.\\n\\n_Lead ID: ' + $json.leadId + '_' }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-35",
+      "name": "Confirm to Buyer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3000,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"name\",\"=\",$('State Machine').item.json.sessionData ? JSON.parse($('State Machine').item.json.sessionData).lead_id || '' : '']]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"description\",\"location\",\"budget\",\"urgency\",\"member_phone\",\"member_name\",\"tier\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-36",
+      "name": "Get Prem Lead for Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2200,
+        1300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4o-mini"
+            },
+            {
+              "name": "messages",
+              "value": "={{ JSON.stringify([{role:'system',content:'You generate vendor qualification questions for B2B leads in India.'},{role:'user',content:'Generate 6 questions to qualify a vendor for this PREMIUM lead: \"' + (JSON.parse($(\\'State Machine\\').item.json.sessionData || '{}').lead_description || 'product/service lead') + '\". Lead type: ' + (JSON.parse($(\\'State Machine\\').item.json.sessionData || '{}').lead_type || 'BUY') + '. Return JSON: {\"questions\":[\"q1\",...,\"q6\"]}'}]) }}"
+            },
+            {
+              "name": "max_tokens",
+              "value": "400"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-37",
+      "name": "Call OpenAI Prem Vendor Q",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        1300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OpenAI_API_Auth",
+          "name": "OpenAI API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst content = res?.choices?.[0]?.message?.content || '';\nconst sm = $('State Machine').first().json;\nlet sd = {};\ntry { sd = JSON.parse(sm.sessionData || '{}'); } catch(e) {}\n\nconst leadType = sd.lead_type || 'BUY';\nconst fallbackQ = {\n  BUY: ['How many years have you been supplying this product?','What is your production/supply capacity per month?','Do you have any quality certifications (ISO, BIS, etc.)?','What is your delivery timeline for bulk orders?','Which major clients have you served?','What is your pricing model (fixed/negotiable)?'],\n  SELL: ['What types of buyers do you typically work with?','Do you offer customization?','What is your minimum order for buyers?','Do you provide samples before bulk purchase?','What are your payment terms?','Can you provide references from previous buyers?'],\n  'SERVICE NEED': ['How many years of experience do you have in this service?','What is your team size for this service?','Can you provide a portfolio or case studies?','What is your typical project turnaround?','Do you handle projects outside your city?','What are your payment terms?'],\n  'SERVICE OFFER': ['What industries have you served?','What is your team size?','What is your typical project turnaround?','Do you operate pan-India?','Can you provide client references?','What are your pricing terms?']\n};\n\nlet questions = fallbackQ[leadType] || fallbackQ['BUY'];\ntry {\n  const parsed = JSON.parse(content);\n  if (parsed.questions?.length >= 4) questions = parsed.questions.slice(0,6);\n} catch(e) {}\n\nsd.vendor_questions = questions;\nreturn [{ json: { questions, q1: questions[0], phone: sm.phone, sd: JSON.stringify(sd) } }];\n"
+      },
+      "id": "f2b-node-38",
+      "name": "Parse Prem Vendor Q",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        1300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $('State Machine').item.json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "current_step",
+              "value": "VENDOR_Q1"
+            },
+            {
+              "name": "session_data",
+              "value": "={{ $json.sd }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-39",
+      "name": "Store Prem Vendor Q",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2800,
+        1300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Parse Vendor Questions').item.json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '🤖 *PREMIUM Vendor Qualification*\\n\\n' + $('Parse Vendor Questions').item.json.questions.length + ' questions to assess your match for this lead.\\n\\n*Q1:* ' + $('Parse Vendor Questions').item.json.q1 }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-40",
+      "name": "Send Prem Vendor Q1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3000,
+        1300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sm = $('State Machine').first().json;\nlet sd = {};\ntry { sd = JSON.parse(sm.sessionData || '{}'); } catch(e) {}\n\nconst answers = [];\nfor (let i = 1; i <= 6; i++) {\n  if (sd[`vendor_answer_${i}`]) answers.push(sd[`vendor_answer_${i}`]);\n}\n\nlet score = 50;\nconst questionCount = (sd.vendor_questions || []).length;\nconst perQ = answers.length > 0 ? Math.floor(40 / Math.min(questionCount, 6)) : 0;\n\nfor (const ans of answers) {\n  const words = ans.trim().split(/\\s+/).length;\n  if (words >= 5) score += perQ;\n  else if (words >= 2) score += Math.floor(perQ / 2);\n}\n\nscore = Math.min(score, 100);\nsd.compatibility_score = score;\n\nreturn [{ json: { score, phone: sm.phone, sd: JSON.stringify(sd) } }];\n"
+      },
+      "id": "f2b-node-41",
+      "name": "Calculate Prem Vendor Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        1700
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/{{ $('State Machine').item.json.sessionName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "current_step",
+              "value": "VENDOR_SCORE"
+            },
+            {
+              "name": "session_data",
+              "value": "={{ $json.sd }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-42",
+      "name": "Update Prem Session Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        1700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Calculate Vendor Score').item.json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '📊 *PREMIUM Match Score: ' + $('Calculate Vendor Score').item.json.score + '/100*\\n\\n' + ($('Calculate Vendor Score').item.json.score >= 80 ? '🌟🌟🌟 Excellent match! Very high probability of connection.' : $('Calculate Vendor Score').item.json.score >= 70 ? '🌟🌟 Strong match. Good candidate.' : $('Calculate Vendor Score').item.json.score >= 50 ? '🌟 Good fit. Moderate match.' : '⚠️ Low match score.') + '\\n\\nReply *SUBMIT* to express interest (admin reviews within 2 hours)\\nReply *CANCEL* to skip' }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-43",
+      "name": "Send Prem Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        1700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sm = $('State Machine').first().json;\nlet sd = {};\ntry { sd = JSON.parse(sm.sessionData || '{}'); } catch(e) {}\n\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\nconst vendorInterest = {\n  vendor_id: sd.vendor_id || '',\n  vendor_name: sd.vendor_name || '',\n  vendor_phone: sm.phone,\n  match_score: sd.match_score || 0,\n  compatibility_score: sd.compatibility_score || 0,\n  submitted_at: ts,\n  status: 'Pending Admin Approval'\n};\n\nreturn [{ json: { vendorInterest, lead_id: sd.lead_id || '', phone: sm.phone, sd: JSON.stringify(sd) } }];\n"
+      },
+      "id": "f2b-node-44",
+      "name": "Build Prem Vendor Interest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        2100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ encodeURIComponent($json.lead_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-45",
+      "name": "Get Lead Current Vendors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        2100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const interest = $('Build Vendor Interest').first().json.vendorInterest;\nconst leadId = $('Build Vendor Interest').first().json.lead_id;\nconst phone = $('Build Vendor Interest').first().json.phone;\nconst leadRaw = $input.first().json;\nlet existing = [];\ntry { existing = JSON.parse(leadRaw?.data?.interested_vendors || '[]'); } catch(e) {}\nexisting.push(interest);\nreturn [{ json: { updated: JSON.stringify(existing), lead_id: leadId, phone, vendorInterest: interest } }];\n"
+      },
+      "id": "f2b-node-46",
+      "name": "Merge Vendor Interest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        2100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ encodeURIComponent($json.lead_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "interested_vendors",
+              "value": "={{ $json.updated }}"
+            },
+            {
+              "name": "status",
+              "value": "Has Interested Vendors"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-47",
+      "name": "Store Prem Vendor Interest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2800,
+        2100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $env.ADMIN_WHATSAPP }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '🤝 PREMIUM VENDOR MATCH FOR APPROVAL\\n\\n📋 Lead ID: ' + $('Merge Vendor Interest').item.json.lead_id + ' ⭐ PREMIUM\\n👤 Vendor: ' + $('Merge Vendor Interest').item.json.vendorInterest.vendor_name + ' (' + $('Merge Vendor Interest').item.json.vendorInterest.vendor_id + ')\\n📍 Phone: ' + $('Merge Vendor Interest').item.json.vendorInterest.vendor_phone + '\\n\\nMatch Score: ' + $('Merge Vendor Interest').item.json.vendorInterest.match_score + '/100\\nCompatibility: ' + $('Merge Vendor Interest').item.json.vendorInterest.compatibility_score + '/100\\n\\nAI Recommendation: ' + ($('Merge Vendor Interest').item.json.vendorInterest.compatibility_score >= 70 ? '✅ APPROVE' : $('Merge Vendor Interest').item.json.vendorInterest.compatibility_score >= 50 ? '⚠️ REVIEW' : '❌ CONSIDER DECLINE') + '\\n\\n━━━━━━━━━━━━━━━━\\nActions (SLA: 2 hours):\\nCONNECT ' + $('Merge Vendor Interest').item.json.lead_id + ' ' + $('Merge Vendor Interest').item.json.vendorInterest.vendor_id + '\\nDECLINE ' + $('Merge Vendor Interest').item.json.lead_id + ' ' + $('Merge Vendor Interest').item.json.vendorInterest.vendor_id }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-48",
+      "name": "Notify Admin Prem Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3000,
+        2100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Merge Vendor Interest').item.json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '✅ *PREMIUM Interest Submitted!*\\n\\nYour interest in this lead has been submitted.\\n📊 Compatibility Score: ' + $('Merge Vendor Interest').item.json.vendorInterest.compatibility_score + '/100\\n\\nOur team will review within *2 hours* and connect you with the buyer if approved.\\n\\nYou will receive buyer contact details directly on approval.' }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-49",
+      "name": "Send Prem Vendor Confirm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3200,
+        2100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sm = $('State Machine').first().json;\nconst ad = JSON.parse(sm.actionData || '{}');\nreturn [{ json: { command: ad.command, lead_id: ad.lead_id, vendor_id: ad.vendor_id, admin_phone: ad.admin_phone } }];\n"
+      },
+      "id": "f2b-node-50",
+      "name": "Parse Admin Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f2b-c5",
+              "leftValue": "={{ $json.command }}",
+              "rightValue": "CONNECT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f2b-node-51",
+      "name": "IF CONNECT Command",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ encodeURIComponent($('Parse Admin Command').item.json.lead_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-52",
+      "name": "Get Lead for Connection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        2400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"rifah_id\",\"=\",$('Parse Admin Command').item.json.vendor_id]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"full_name\",\"business_name\",\"whatsapp_number\",\"city_state\",\"industry\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-53",
+      "name": "Get Vendor Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        2600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Get Lead for Connection').item.json.data?.member_phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '🎉 *PREMIUM MATCH CONFIRMED!*\\n\\nYour lead has been matched with a qualified vendor!\\n\\n🏢 *Vendor:* ' + ($('Get Vendor Details').item.json.data?.[0]?.business_name || 'N/A') + '\\n📍 *Location:* ' + ($('Get Vendor Details').item.json.data?.[0]?.city_state || 'N/A') + '\\n🏭 *Industry:* ' + ($('Get Vendor Details').item.json.data?.[0]?.industry || 'N/A') + '\\n📱 *WhatsApp:* ' + ($('Get Vendor Details').item.json.data?.[0]?.whatsapp_number || 'N/A') + '\\n\\nPlease reach out directly to finalize your deal.\\n\\n_Lead ID: ' + $('Parse Admin Command').item.json.lead_id + '_' }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-54",
+      "name": "Share Vendor to Buyer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2800,
+        2400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Get Vendor Details').item.json.data?.[0]?.whatsapp_number }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '🎉 *PREMIUM CONNECTION APPROVED!*\\n\\nYou have been connected with the buyer!\\n\\n👤 *Buyer:* ' + ($('Get Lead for Connection').item.json.data?.member_name || 'N/A') + '\\n📱 *WhatsApp:* ' + ($('Get Lead for Connection').item.json.data?.member_phone || 'N/A') + '\\n📋 *Lead:* ' + ($('Get Lead for Connection').item.json.data?.title || 'N/A') + '\\n\\nPlease reach out to close the deal!\\n\\nGood luck! 🤝' }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-55",
+      "name": "Share Buyer to Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2800,
+        2600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead/{{ encodeURIComponent($('Parse Admin Command').item.json.lead_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "connection_made",
+              "value": "1"
+            },
+            {
+              "name": "status",
+              "value": "Connected"
+            },
+            {
+              "name": "approved_by",
+              "value": "={{ $('Parse Admin Command').item.json.admin_phone }}"
+            },
+            {
+              "name": "approved_at",
+              "value": "={{ new Date().toISOString().replace('T',' ').substring(0,19) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-56",
+      "name": "Update Lead Connected",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3000,
+        2500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Get Vendor Details').item.json.data?.[0]?.whatsapp_number }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: '❌ *Lead Connection Declined*\\n\\nThank you for your interest in Lead ' + $('Parse Admin Command').item.json.lead_id + '.\\nThe admin has decided to proceed with another vendor.\\n\\nWe appreciate your time and will notify you of future matching leads. 🙏' }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f2b-node-57",
+      "name": "Send Decline to Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2600,
+        2700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "WhatsApp Webhook GET": {
+      "main": [
+        [
+          {
+            "node": "Extract Verification Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Verification Challenge": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook Verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Webhook POST": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "IF Valid Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid Message": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Member",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Member": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "State Machine": {
+      "main": [
+        [
+          {
+            "node": "IF Should Send Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Session Upsert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Should Send Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Session Upsert": {
+      "main": [
+        [
+          {
+            "node": "IF New Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF New Session": {
+      "main": [
+        [
+          {
+            "node": "Create Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [
+          {
+            "node": "Get Free Member Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Premium Member Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Media URL from Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Lead Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call OpenAI Free Lead Q",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call OpenAI Prem Lead Q",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Premium Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Intro Messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Free Lead for Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Prem Lead for Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call OpenAI Free Vendor Q",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call OpenAI Prem Vendor Q",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calculate Free Vendor Score",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calculate Prem Vendor Score",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store Free Vendor Interest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prem Vendor Interest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Admin Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Free Member Count": {
+      "main": [
+        [
+          {
+            "node": "Build Free Member Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Free Member Data": {
+      "main": [
+        [
+          {
+            "node": "Create Free Member in ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Free Member in ERPNext": {
+      "main": [
+        [
+          {
+            "node": "Send Free Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Admin Free",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Session Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Premium Member Count": {
+      "main": [
+        [
+          {
+            "node": "Build Premium Member Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Premium Member Data": {
+      "main": [
+        [
+          {
+            "node": "Create Premium Pending in ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Premium Pending in ERPNext": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Premium",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Media URL from Meta": {
+      "main": [
+        [
+          {
+            "node": "Download Media from Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Media from Meta": {
+      "main": [
+        [
+          {
+            "node": "Upload File to ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "State Machine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead Count": {
+      "main": [
+        [
+          {
+            "node": "Build Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Create Lead in ERPNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead in ERPNext": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Free Lead Q": {
+      "main": [
+        [
+          {
+            "node": "Parse Free AI Lead Q",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Free AI Lead Q": {
+      "main": [
+        [
+          {
+            "node": "Store Free AI Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Free AI Questions": {
+      "main": [
+        [
+          {
+            "node": "Send Free AI Q1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Free Lead for Vendor": {
+      "main": [
+        [
+          {
+            "node": "Check Vendor Member",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Vendor Member": {
+      "main": [
+        [
+          {
+            "node": "Build Free Vendor Intro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Free Vendor Intro": {
+      "main": [
+        [
+          {
+            "node": "Send Free Vendor Intro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Free Vendor Q": {
+      "main": [
+        [
+          {
+            "node": "Parse Free AI Vendor Q",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Free AI Vendor Q": {
+      "main": [
+        [
+          {
+            "node": "Store Free Vendor Q",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Free Vendor Q": {
+      "main": [
+        [
+          {
+            "node": "Send Free Vendor Q1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Free Vendor Score": {
+      "main": [
+        [
+          {
+            "node": "Update Free Session Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Free Session Score": {
+      "main": [
+        [
+          {
+            "node": "Send Free Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Free Vendor Interest": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Free Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin Free Match": {
+      "main": [
+        [
+          {
+            "node": "Send Free Vendor Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Premium Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Create Premium Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Premium Lead": {
+      "main": [
+        [
+          {
+            "node": "Get Vendors by City",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Vendors by City": {
+      "main": [
+        [
+          {
+            "node": "Run Matching Algorithm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Matching Algorithm": {
+      "main": [
+        [
+          {
+            "node": "Store Matched Vendors in Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Matched Vendors in Lead": {
+      "main": [
+        [
+          {
+            "node": "Format Vendor List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Vendor List": {
+      "main": [
+        [
+          {
+            "node": "Update Session with Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session with Matches": {
+      "main": [
+        [
+          {
+            "node": "Send Vendor List to User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Vendor List to User": {
+      "main": [
+        [
+          {
+            "node": "IF Few Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Few Matches": {
+      "main": [
+        [
+          {
+            "node": "Post to Groups Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Post to Groups Fallback": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Prem Lead Q": {
+      "main": [
+        [
+          {
+            "node": "Parse Prem AI Lead Q",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Prem AI Lead Q": {
+      "main": [
+        [
+          {
+            "node": "Store Prem AI Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Prem AI Questions": {
+      "main": [
+        [
+          {
+            "node": "Persist Prem AI Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Prem AI Questions": {
+      "main": [
+        [
+          {
+            "node": "Send Prem AI Q1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Intro Messages": {
+      "main": [
+        [
+          {
+            "node": "Send Intro to Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Intro to Vendor": {
+      "main": [
+        [
+          {
+            "node": "Collect Intro Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Intro Results": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Intros Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Intros Sent": {
+      "main": [
+        [
+          {
+            "node": "Confirm to Buyer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Prem Lead for Vendor": {
+      "main": [
+        [
+          {
+            "node": "Call OpenAI Prem Vendor Q",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Prem Vendor Q": {
+      "main": [
+        [
+          {
+            "node": "Parse Prem Vendor Q",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Prem Vendor Q": {
+      "main": [
+        [
+          {
+            "node": "Store Prem Vendor Q",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Prem Vendor Q": {
+      "main": [
+        [
+          {
+            "node": "Send Prem Vendor Q1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Prem Vendor Score": {
+      "main": [
+        [
+          {
+            "node": "Update Prem Session Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Prem Session Score": {
+      "main": [
+        [
+          {
+            "node": "Send Prem Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prem Vendor Interest": {
+      "main": [
+        [
+          {
+            "node": "Get Lead Current Vendors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead Current Vendors": {
+      "main": [
+        [
+          {
+            "node": "Merge Vendor Interest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Vendor Interest": {
+      "main": [
+        [
+          {
+            "node": "Store Prem Vendor Interest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Prem Vendor Interest": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Prem Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin Prem Match": {
+      "main": [
+        [
+          {
+            "node": "Send Prem Vendor Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Admin Command": {
+      "main": [
+        [
+          {
+            "node": "IF CONNECT Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF CONNECT Command": {
+      "main": [
+        [
+          {
+            "node": "Get Lead for Connection",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Vendor Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Vendor Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead for Connection": {
+      "main": [
+        [
+          {
+            "node": "Share Vendor to Buyer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Vendor Details": {
+      "main": [
+        [
+          {
+            "node": "Share Buyer to Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Share Vendor to Buyer": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Connected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Share Buyer to Vendor": {
+      "main": [
+        [
+          {
+            "node": "Send Decline to Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "9cb7fb64-6243-4901-b069-472e204d44b9",
+  "meta": {
+    "instanceId": "27c7b857d362256d9ab76833bfb83d72290957baa8b8f6bd5cfcff7cfdd33632"
+  },
+  "id": "rifah-connect-unified",
+  "tags": [
+    {
+      "updatedAt": "2026-03-12T12:01:15.566Z",
+      "createdAt": "2026-03-12T12:01:15.566Z",
+      "id": "TSFWkomwiBa1kIyt",
+      "name": "WhatsApp"
+    },
+    {
+      "updatedAt": "2026-03-12T12:01:15.558Z",
+      "createdAt": "2026-03-12T12:01:15.558Z",
+      "id": "rK0UCrzgBe01coql",
+      "name": "RIFAH Connect"
+    }
+  ]
+}

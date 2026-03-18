@@ -30,8 +30,7 @@ See [documents/flows_overview.md](documents/flows_overview.md) for a full explan
 ```text
 rifah-connect-version1/
 ├── n8n/                    # n8n workflow exports (JSON)
-│   ├── RIFAH Connect - Flow 1 Registration.json
-│   └── RIFAH Connect - Flow 2A Share Lead.json
+│   └── RIFAH Connect.json          #   ← Single unified workflow (all flows)
 ├── master_prompts/         # AI prompt templates for each flow
 ├── documents/              # Guides, setup docs, flow documentation
 │   ├── flows_overview.md   #   ← Complete flow reference (start here)
@@ -48,8 +47,9 @@ rifah-connect-version1/
 │   ├── github.js           #   GitHub API (issues, labels, assignments)
 │   └── erpnext.js          #   ERPNext API (sessions, members, leads, cleanup)
 ├── test_suite/             # Integration tests for flows
-│   ├── test_flow1.js       #   Flow 1 test suite (68/69 passing)
-│   ├── test_flow2a.js      #   Flow 2A test suite (40/40 passing)
+│   ├── test_flow1.js       #   Registration test suite (68/69 passing)
+│   ├── test_flow2a.js      #   Share Lead (Free) test suite (40/40 passing)
+│   ├── test_flow2b.js      #   Share Lead (Premium) test suite
 │   └── README.md
 ├── misc/                   # Scratch data and utilities
 ├── docker-compose.yml      # Docker stack definition
@@ -59,15 +59,28 @@ rifah-connect-version1/
 
 ---
 
+## Menu Options
+
+| Option | Feature | Status |
+| ------ | ------- | ------ |
+| 1 | Register / Update Business | ✅ Complete |
+| 2 | Share a Lead | ✅ Complete |
+| 3 | Find a Lead | 🚧 Planned |
+| 4 | My Profile | 🚧 Planned |
+| 5 | Help & Support | 🚧 Planned |
+
 ## Flows
 
-| Flow | Description | Status | Test Score |
-| ---- | ----------- | ------ | ---------- |
-| Flow 1 | Member Registration / Profile Update | ✅ Complete | 68/69 (99%) |
-| Flow 2A | Share Lead — Free User | ✅ Complete | 40/40 (100%) |
-| Flow 2B | Share Lead — Premium User | 🚧 Planned | — |
-| Flow 4 | Learn & Grow | 🚧 Planned | — |
-| Flow 5 | Talk to RIFAH Team | 🚧 Planned | — |
+All flows run in a single unified n8n workflow (`n8n/RIFAH Connect.json`).
+
+| Flow | Description | Menu Option | Status | Test Score |
+| ---- | ----------- | ----------- | ------ | ---------- |
+| Registration | Member Registration / Profile Update | 1 | ✅ Complete | 68/69 (99%) |
+| Share Lead (Free) | Lead sharing for FREE tier members | 2 | ✅ Complete | 40/40 (100%) |
+| Share Lead (Premium) | AI-matched lead sharing for PREMIUM members | 2 | ✅ Complete | — |
+| Find a Lead | Browse & respond to live requirements | 3 | 🚧 Planned | — |
+| My Profile | View/edit member profile | 4 | 🚧 Planned | — |
+| Help & Support | Contact RIFAH team | 5 | 🚧 Planned | — |
 
 > For detailed flow descriptions, conversation scripts, and state machine diagrams, see [documents/flows_overview.md](documents/flows_overview.md).
 
@@ -110,7 +123,6 @@ GITHUB_REPO=your_username/rifah-connect
 
 # Test webhook URLs
 N8N_WEBHOOK_URL=https://your-ngrok-domain.ngrok-free.app/webhook/whatsapp-webhook
-N8N_FLOW2A_WEBHOOK_URL=https://your-ngrok-domain.ngrok-free.app/webhook/flow2a-webhook
 ```
 
 > Never commit `.env` to version control — it is git-ignored.
@@ -122,19 +134,13 @@ docker compose up -d
 docker compose ps        # verify all services are healthy
 ```
 
-### Import n8n Workflows
+### Import n8n Workflow
 
 ```bash
-# Copy and import Flow 1
-docker cp "n8n/RIFAH Connect - Flow 1 Registration.json" rifah_n8n:/tmp/flow1.json
-docker exec rifah_n8n n8n import:workflow --input=/tmp/flow1.json
-docker exec rifah_n8n n8n publish:workflow --id=rifah-connect-flow1
-
-# Copy and import Flow 2A
-docker cp "n8n/RIFAH Connect - Flow 2A Share Lead.json" rifah_n8n:/tmp/flow2a.json
-docker exec rifah_n8n n8n import:workflow --input=/tmp/flow2a.json
-docker exec rifah_n8n n8n publish:workflow --id=flow2a-share-lead-001
-
+# Import the unified workflow
+docker cp "n8n/RIFAH Connect.json" rifah_n8n:/tmp/rifah.json
+docker exec rifah_n8n n8n import:workflow --input=/tmp/rifah.json
+docker exec rifah_n8n n8n publish:workflow --id=rifah-connect-unified
 docker restart rifah_n8n
 ```
 

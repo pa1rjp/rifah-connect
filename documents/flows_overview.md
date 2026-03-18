@@ -7,13 +7,12 @@
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Flow 1 — Member Registration / Profile Update](#flow-1--member-registration--profile-update)
-3. [Flow 2A — Share Lead (Free User)](#flow-2a--share-lead-free-user)
-4. [Flow 2B — Share Lead (Premium User)](#flow-2b--share-lead-premium-user) *(Planned)*
-5. [Flow 4 — Learn & Grow](#flow-4--learn--grow) *(Planned)*
-6. [Flow 5 — Talk to RIFAH Team](#flow-5--talk-to-rifah-team) *(Planned)*
-7. [Shared Infrastructure](#shared-infrastructure)
-8. [ERPNext Custom DocTypes Reference](#erpnext-custom-doctypes-reference)
+2. [Registration Flow — Menu Option 1](#flow-1--member-registration--profile-update)
+3. [Share Lead — Free User — Menu Option 2](#flow-2a--share-lead-free-user)
+4. [Share Lead — Premium User — Menu Option 2](#flow-2b--share-lead-premium-user)
+5. Find a Lead — Menu Option 3 *(Planned — not yet implemented)*
+6. [Shared Infrastructure](#shared-infrastructure)
+7. [ERPNext Custom DocTypes Reference](#erpnext-custom-doctypes-reference)
 
 ---
 
@@ -22,21 +21,19 @@
 ```
 User (WhatsApp)
       │
-      ▼  POST /webhook/whatsapp-webhook  (Flow 1 entry)
-   n8n Flow 1 ──────────────────────────────────────────────────────┐
-      │                                                              │
-      │  When user selects "2. Share a Lead" from main menu:        │
-      │  → Sets session step = LEAD_TYPE                            │
-      │  → Forwards subsequent messages to Flow 2A                  │
-      │                                                              │
-      ▼  POST /webhook/flow2a-webhook  (Flow 2A entry)              │
-   n8n Flow 2A                                                       │
-      │                                                              │
-      ▼                                                              ▼
-   ERPNext (RIFAH Session — step tracking)              ERPNext (RIFAH Member, RIFAH Lead)
+      ▼  POST /webhook/whatsapp-webhook
+   n8n — RIFAH Connect (single unified workflow)
       │
-      ▼
-   Meta Cloud API → WhatsApp reply to user
+      ├─ Menu option 1 ──► Registration flow
+      │
+      ├─ Menu option 2 ──► Share Lead
+      │                      ├─ FREE member  ──► Free lead flow (AI questions → post to groups)
+      │                      └─ PREMIUM member ► Premium lead flow (AI questions → smart matching)
+      │
+      ├─ Menu option 3 ──► Find a Lead  [🚧 Planned]
+      │
+      └─ All steps ────────► ERPNext (session, member, lead records)
+                              Meta Cloud API (WhatsApp replies)
 ```
 
 **Every flow** follows this pattern:
@@ -425,7 +422,8 @@ VENDOR_INTRO → [OpenAI call] → VENDOR_Q1 → ... → VENDOR_Q6 → VENDOR_SC
 
 ## Flow 2B — Share Lead (Premium User)
 
-**Status:** 🚧 Planned
+**Status:** ✅ Complete
+**Menu Option:** 2 (PREMIUM members only)
 **Master prompt:** `master_prompts/flow2b_share_lead_premium.md`
 
 ### Key Differences from Flow 2A
