@@ -38,7 +38,13 @@
     "admin_section",
     "admin_notes",
     "groups_assigned",
-    "groups_assigned_on"
+    "groups_assigned_on",
+    "flow3_section",
+    "search_preferences",
+    "daily_alert_enabled",
+    "column_break_3",
+    "last_search_date",
+    "leads_responded_today"
   ],
   "fields": [
     {
@@ -219,6 +225,41 @@
       "fieldtype": "Table",
       "label": "Product Materials",
       "options": "RIFAH Product Material"
+    },
+    {
+      "fieldname": "flow3_section",
+      "fieldtype": "Section Break",
+      "label": "Flow 3 — Find Lead"
+    },
+    {
+      "fieldname": "search_preferences",
+      "fieldtype": "Long Text",
+      "label": "Saved Search Preferences (JSON)",
+      "description": "JSON array of saved search criteria (Premium only)"
+    },
+    {
+      "fieldname": "daily_alert_enabled",
+      "fieldtype": "Check",
+      "label": "Daily Lead Alerts Enabled",
+      "default": "0",
+      "description": "Premium: receive daily WhatsApp alerts for matching leads"
+    },
+    {
+      "fieldname": "column_break_3",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "last_search_date",
+      "fieldtype": "Date",
+      "label": "Last Search Date",
+      "description": "Used to reset free tier daily response counter"
+    },
+    {
+      "fieldname": "leads_responded_today",
+      "fieldtype": "Int",
+      "label": "Leads Responded Today",
+      "default": "0",
+      "description": "Free tier: max 3 responses per day"
     },
     {
       "fieldname": "admin_section",
