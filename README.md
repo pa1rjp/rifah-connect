@@ -45,11 +45,13 @@ rifah-connect-version1/
 │   └── rifah_whatsapp_group.json
 ├── scripts/                # Reusable CLI + module utilities
 │   ├── github.js           #   GitHub API (issues, labels, assignments)
-│   └── erpnext.js          #   ERPNext API (sessions, members, leads, cleanup)
+│   ├── erpnext.js          #   ERPNext API (sessions, members, leads, cleanup)
+│   └── populate_test_leads.js  # Seed 20 test leads for Flow 3 testing
 ├── test_suite/             # Integration tests for flows
 │   ├── test_flow1.js       #   Registration test suite (68/69 passing)
 │   ├── test_flow2a.js      #   Share Lead (Free) test suite (40/40 passing)
 │   ├── test_flow2b.js      #   Share Lead (Premium) test suite
+│   ├── test_flow3.js       #   Find Lead test suite (13 suites)
 │   └── README.md
 ├── misc/                   # Scratch data and utilities
 ├── docker-compose.yml      # Docker stack definition
@@ -65,7 +67,7 @@ rifah-connect-version1/
 | ------ | ------- | ------ |
 | 1 | Register / Update Business | ✅ Complete |
 | 2 | Share a Lead | ✅ Complete |
-| 3 | Find a Lead | 🚧 Planned |
+| 3 | Find a Lead | ✅ Complete |
 | 4 | My Profile | 🚧 Planned |
 | 5 | Help & Support | 🚧 Planned |
 
@@ -78,7 +80,7 @@ All flows run in a single unified n8n workflow (`n8n/RIFAH Connect.json`).
 | Registration | Member Registration / Profile Update | 1 | ✅ Complete | 68/69 (99%) |
 | Share Lead (Free) | Lead sharing for FREE tier members | 2 | ✅ Complete | 40/40 (100%) |
 | Share Lead (Premium) | AI-matched lead sharing for PREMIUM members | 2 | ✅ Complete | — |
-| Find a Lead | Browse & respond to live requirements | 3 | 🚧 Planned | — |
+| Find a Lead | Browse & respond to live requirements | 3 | ✅ Complete | — |
 | My Profile | View/edit member profile | 4 | 🚧 Planned | — |
 | Help & Support | Contact RIFAH team | 5 | 🚧 Planned | — |
 
@@ -194,6 +196,17 @@ node test_suite/test_flow2a.js --variants  # lead type variants
 node test_suite/test_flow2a.js --vendor    # vendor response flow
 node test_suite/test_flow2a.js --edge      # edge cases
 node test_suite/test_flow2a.js --clean     # wipe all Flow 2A test data
+```
+
+### Flow 3 Tests
+
+```bash
+node scripts/populate_test_leads.js           # seed test leads first
+node test_suite/test_flow3.js                 # all suites
+node test_suite/test_flow3.js --category      # browse by category
+node test_suite/test_flow3.js --qualify       # vendor qualification + submit
+node test_suite/test_flow3.js --limit         # daily limit (FREE 3/day)
+node test_suite/test_flow3.js --clean         # wipe test data
 ```
 
 See [test_suite/README.md](test_suite/README.md) for details on the testing approach.

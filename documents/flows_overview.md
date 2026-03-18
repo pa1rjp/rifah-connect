@@ -10,7 +10,7 @@
 2. [Registration Flow — Menu Option 1](#flow-1--member-registration--profile-update)
 3. [Share Lead — Free User — Menu Option 2](#flow-2a--share-lead-free-user)
 4. [Share Lead — Premium User — Menu Option 2](#flow-2b--share-lead-premium-user)
-5. Find a Lead — Menu Option 3 *(Planned — not yet implemented)*
+5. [Find a Lead — Menu Option 3](#flow-3-find-lead)
 6. [Shared Infrastructure](#shared-infrastructure)
 7. [ERPNext Custom DocTypes Reference](#erpnext-custom-doctypes-reference)
 
@@ -30,7 +30,7 @@ User (WhatsApp)
       │                      ├─ FREE member  ──► Free lead flow (AI questions → post to groups)
       │                      └─ PREMIUM member ► Premium lead flow (AI questions → smart matching)
       │
-      ├─ Menu option 3 ──► Find a Lead  [🚧 Planned]
+      ├─ Menu option 3 ──► Find a Lead  [✅ Complete]
       │
       └─ All steps ────────► ERPNext (session, member, lead records)
                               Meta Cloud API (WhatsApp replies)
@@ -455,16 +455,151 @@ LEAD_TYPE → LEAD_DESC → LEAD_LOC → LEAD_URGENCY → LEAD_BUDGET
 
 ---
 
+## Flow 3 Find Lead
+
+**Status:** ✅ Complete
+**Menu Option:** 3 (FREE and PREMIUM members)
+**Master prompt:** `master_prompts/flow3_find_lead.md`
+**n8n nodes added:** 52 nodes across 14 action outputs (Switch Action outputs 17–30)
+
+---
+
+### Purpose
+
+Allow registered members to proactively search for and respond to existing leads posted by buyers. The vendor perspective — finding business opportunities rather than posting requirements.
+
+---
+
+### Tier Access
+
+| Feature | FREE | PREMIUM |
+|---------|------|---------|
+| Lead Search Scope | Industry + City only | All industries + All locations |
+| Leads Visible | Filtered by city + industry | All active leads |
+| Filter Options | Category, Urgency | All + Location choice |
+| Responses per Day | 3 leads max | Unlimited |
+| Lead Details | Full details | Full details + AI qualification |
+| Saved Searches | ❌ Not available | ✅ Save search criteria |
+| Daily Lead Alerts | ❌ Not available | ✅ (field ready, cron planned) |
+
+---
+
+### Search Options (Step: SEARCH_METHOD)
+
+```
+1️⃣ Browse by Category
+2️⃣ Search by Location
+3️⃣ Browse by Urgency
+4️⃣ View All Recent Leads
+5️⃣ My Saved Searches (Premium only)
+6️⃣ My Responses
+0️⃣ Back to Main Menu
+```
+
+---
+
+### State Machine Steps
+
+| Step | Description | Next Steps |
+|------|-------------|------------|
+| `SEARCH_METHOD` | Shows search menu | `CATEGORY_SELECT`, `LOCATION_INPUT`, `URGENCY_SELECT`, `LEAD_SELECT` |
+| `CATEGORY_SELECT` | Shows BUY/SELL/SERVICE NEED/SERVICE OFFER menu | `LEAD_SELECT` |
+| `URGENCY_SELECT` | Shows URGENT/THIS WEEK/THIS MONTH/FLEXIBLE menu | `LEAD_SELECT` |
+| `LOCATION_INPUT` | PREMIUM: choose city/state/All India or type city | `LEAD_SELECT` |
+| `LEAD_SELECT` | Shows numbered list of leads; accepts number, MORE, 0 | `LEAD_ACTION` |
+| `LEAD_ACTION` | Shows lead detail; accepts INTERESTED, BACK | `VENDOR_Q1` |
+| `VENDOR_Q1–Q6` | 6 AI-generated vendor qualification questions | `VENDOR_SCORE` |
+| `VENDOR_SCORE` | Compatibility score + SUBMIT/CANCEL | `SEARCH_METHOD` |
+| `SAVE_SEARCH_NAME` | PREMIUM: type search name to save current filters | `SEARCH_METHOD` |
+
+---
+
+### n8n Action Nodes (Flow 3 — 52 nodes, 14 outputs)
+
+| Switch Output | Action | Nodes |
+| ------------- | ------ | ----- |
+| 17 | `show_categories` | Get Category Counts → Format Category Menu → Send |
+| 18 | `query_leads_by_category` | Get Leads → Format List → Update Session → Send |
+| 19 | `query_leads_by_location` | Get Leads → Format List → Update Session → Send |
+| 20 | `show_urgency_options` | Get Urgency Counts → Format Urgency Menu → Send |
+| 21 | `query_leads_by_urgency` | Get Leads → Format List → Update Session → Send |
+| 22 | `query_all_recent` | Get Recent Leads → Format (grouped by day) → Update Session → Send |
+| 23 | `get_lead_detail` | Format Lead Detail → Update Session → Send |
+| 24 | `load_more_leads` | Get More Leads → Format List → Update Session → Send |
+| 25 | `gen_vendor_q_f3` | Call OpenAI → Parse Q → Store in Session → Send Q1 |
+| 26 | `submit_interest_f3` | Build Interest → Get Lead → Merge → Store → Notify Admin → Confirm + (parallel) Increment FREE counter |
+| 27 | `my_responses` | Get All Leads → Filter by vendor_id → Format → Send |
+| 28 | `my_saved_searches` | Format Saved Searches (from member.search_preferences) → Send |
+| 29 | `save_search_f3` | Build Data → Get Member → Merge → Store in ERPNext → Confirm |
+| 30 | `show_find_lead_menu` | Send Find Lead menu (re-entry point) |
+
+---
+
+### ERPNext Records Written (Flow 3)
+
+| DocType | When | Fields Updated |
+|---------|------|----------------|
+| RIFAH Session | Each step | `current_leads`, `current_lead_id`, `current_lead_details`, `search_method`, `search_offset`, `selected_category`, `selected_urgency`, `qualification_source` |
+| RIFAH Lead | On vendor interest submitted | `interested_vendors` (JSON array), `status = Has Interested Vendors` |
+| RIFAH Member | On FREE submission | `leads_responded_today` (+1), `last_search_date` |
+| RIFAH Member | On save search | `search_preferences` (JSON array of saved filters) |
+
+---
+
+### New Fields Added to RIFAH Member (Issue #41)
+
+| Field | Type | Purpose |
+| ----- | ---- | ------- |
+| `search_preferences` | Long Text (JSON) | Saved search criteria (Premium only) |
+| `daily_alert_enabled` | Check | Premium daily alert subscription |
+| `last_search_date` | Date | Track date for free tier daily reset |
+| `leads_responded_today` | Int | Count of responses today (FREE: max 3) |
+
+---
+
+### Daily Response Limit (FREE members)
+
+- Limit: 3 responses per day
+- Reset: automatically when `last_search_date` is not today
+- Enforced: in State Machine at `LEAD_ACTION` (INTERESTED)
+- Stored: `RIFAH Member.leads_responded_today` incremented by `Store F3 Counter` node (parallel branch, skipped for PREMIUM)
+
+---
+
+### Test Suite
+
+```bash
+# Seed test leads first
+node scripts/populate_test_leads.js          # creates 20 test leads
+node scripts/populate_test_leads.js --list   # verify
+node scripts/populate_test_leads.js --clean  # reset
+
+# Run Flow 3 tests
+node test_suite/test_flow3.js                # all 13 suites
+node test_suite/test_flow3.js --infra        # infrastructure check
+node test_suite/test_flow3.js --category     # browse by category
+node test_suite/test_flow3.js --location     # search by location
+node test_suite/test_flow3.js --urgency      # browse by urgency
+node test_suite/test_flow3.js --recent       # view all recent
+node test_suite/test_flow3.js --saved        # saved searches gate + premium
+node test_suite/test_flow3.js --qualify      # vendor qualification
+node test_suite/test_flow3.js --limit        # daily limit enforcement
+node test_suite/test_flow3.js --save         # save search flow
+node test_suite/test_flow3.js --clean        # wipe test data
+```
+
+---
+
 ## Flow 4 — Learn & Grow
 
 **Status:** 🚧 Planned
 **Master prompt:** `master_prompts/flow4_learn_grow.md`
 
-### Purpose
+### Flow 4 Purpose
 
 Provide members access to educational resources, training programs, webinars, and events curated by the chamber. No AI required — all content is pre-curated.
 
-### Tier Access
+### Flow 4 Tier Access
 
 | Feature | FREE | PREMIUM |
 |---------|------|---------|
@@ -488,11 +623,11 @@ Provide members access to educational resources, training programs, webinars, an
 **Status:** 🚧 Planned
 **Master prompt:** `master_prompts/flow5_talk_to_rifah_team.md`
 
-### Purpose
+### Flow 5 Purpose
 
 Customer support ticketing, FAQ handling, and direct routing to RIFAH staff. Rule-based, no AI.
 
-### SLA by Tier
+### Flow 5 SLA by Tier
 
 | Feature | FREE | PREMIUM |
 |---------|------|---------|
