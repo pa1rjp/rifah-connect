@@ -4079,6 +4079,616 @@
           }
         }
       }
+    },
+    {
+      "id": "2e9819de-f32f-47ac-a056-24da9cba883a",
+      "name": "Get Leads by Location",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        4300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ (() => { const ad = JSON.parse($(\"State Machine\").item.json.actionData || \"{}\"); const loc = ad.location || \"\"; const base = [[\"status\",\"in\",[\"Posted to Groups\",\"Introductions Sent - Awaiting Vendor Response\",\"Has Interested Vendors\"]],[\"is_active\",\"=\",1]]; if (loc && loc !== \"All India\") base.push([\"location\",\"like\",\"%\"+loc+\"%\"]); return JSON.stringify(base); })() }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"lead_type\",\"title\",\"description\",\"location\",\"urgency\",\"budget\",\"status\",\"creation\",\"tier\"]"
+            },
+            {
+              "name": "order_by",
+              "value": "creation desc"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            },
+            {
+              "name": "limit_start",
+              "value": "={{ JSON.parse($('State Machine').item.json.actionData || '{}').offset || 0 }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "779d54fe-3e8c-4615-88b0-f7ce1d22a079",
+      "name": "Format Location Lead List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        4300
+      ],
+      "parameters": {
+        "jsCode": "\nconst smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst sessionData = JSON.parse(smData.sessionData || '{}');\nconst leadsRaw = $input.first().json;\nlet leads = leadsRaw?.data || [];\nconst isPremium = actionData.isPremium;\n\n// Free tier: additional industry filter\nconst industry = (actionData.industry || '').toLowerCase();\nif (!isPremium && industry) {\n  const filtered = leads.filter(l => {\n    const text = ((l.description || '') + ' ' + (l.title || '')).toLowerCase();\n    return text.includes(industry);\n  });\n  if (filtered.length > 0) leads = filtered;\n}\n\nconst storedLeads = leads.map(l => ({\n  lead_id: l.lead_id || l.name,\n  title: l.title || '',\n  description: l.description || '',\n  location: l.location || '',\n  urgency: l.urgency || '',\n  budget: l.budget || '',\n  lead_type: l.lead_type || '',\n  tier: l.tier || 'FREE',\n  creation: l.creation || ''\n}));\n\nfunction timeAgo(c) {\n  if (!c) return '';\n  const h = Math.floor((Date.now() - new Date(c).getTime()) / 3600000);\n  return h < 1 ? 'Just now' : h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';\n}\n\nconst typeIcons = { BUY: '\ud83d\uded2', SELL: '\ud83c\udff7\ufe0f', 'SERVICE NEED': '\ud83d\udd27', 'SERVICE OFFER': '\ud83d\udcbc' };\n\nlet listLines;\nif (leads.length === 0) {\n  listLines = '_No leads found._';\n} else {\n  listLines = leads.slice(0, 20).map((l, i) => {\n    const icon = typeIcons[l.lead_type] || '\ud83d\udccb';\n    const budget = l.budget ? `\u20b9${l.budget}` : 'Negotiable';\n    return `*${i+1}.* ${icon} ${l.title || l.lead_id}\\n   \ud83d\udccd ${l.location||'N/A'} | \ud83d\udcb0 ${budget}\\n   \u23f0 ${l.urgency||'FLEXIBLE'} | \ud83d\udd50 ${timeAgo(l.creation)}`;\n  }).join('\\n\\n');\n}\n\nconst headerNote = isPremium\n  ? `\u2b50 All leads \u2014 ${leads.length} found`\n  : `\u26a0\ufe0f Free Tier \u2014 ${leads.length} found near *${actionData.cityState || 'your city'}*`;\n\nconst newSession = { ...sessionData, current_leads: storedLeads, search_offset: actionData.offset || 0 };\n\nreturn [{ json: { phone, leads, listLines, headerNote, isPremium, sessionData: JSON.stringify(newSession), sessionName: smData.sessionName } }];\n"
+      }
+    },
+    {
+      "id": "b9d01e2d-a27b-4991-8ef5-b74fde8e34bb",
+      "name": "Update Session Loc Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        4300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/={ $('Format Location Lead List').item.json.sessionName }",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"session_data\": {{ JSON.stringify($(\"Format Location Lead List\").item.json.sessionData) }}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "b2b8ebc0-3587-49d5-9d09-0644c3b3af28",
+      "name": "Send Location Lead List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        4300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const d = $(\"Format Location Lead List\").first().json; const ad = JSON.parse($(\"State Machine\").first().json.actionData || \"{}\"); const loc = ad.location || \"your area\"; const msg = `\ud83d\udccd *LEADS IN ${loc.toUpperCase()}*\n\n${d.headerNote}\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n${d.listLines}\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n${d.leads.length > 0 ? \"Reply with lead number for details\nOr *MORE* for next batch\nOr *0* to go back\" : \"Reply *0* to go back\"}${!d.isPremium ? \"\n\n\ud83d\udca1 Upgrade to Premium for India-wide access\" : \"\"}`; return JSON.stringify({ messaging_product: \"whatsapp\", to: d.phone, type: \"text\", text: { preview_url: false, body: msg } }); })() }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "31ae7b4d-0d8f-4650-984f-3d54ad576c49",
+      "name": "Get Urgency Counts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        4600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "=[[\"status\",\"in\",[\"Posted to Groups\",\"Introductions Sent - Awaiting Vendor Response\",\"Has Interested Vendors\"]],[\"is_active\",\"=\",1]]"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"urgency\"]"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "c3c2bae3-a255-40f9-9dfe-0558bb1e0d48",
+      "name": "Format Urgency Menu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        4600
+      ],
+      "parameters": {
+        "jsCode": "const smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst leads = ($input.first().json?.data || []);\nconst counts = { URGENT: 0, 'THIS WEEK': 0, 'THIS MONTH': 0, FLEXIBLE: 0 };\nfor (const l of leads) { const u = (l.urgency || '').toUpperCase(); if (counts[u] !== undefined) counts[u]++; }\nconst msg = `\u23f0 *BROWSE BY URGENCY*\n\nFind leads by timeline:\n\n1\ufe0f\u20e3 URGENT _(Need immediately)_\n   ${counts['URGENT']} leads\n\n2\ufe0f\u20e3 THIS WEEK\n   ${counts['THIS WEEK']} leads\n\n3\ufe0f\u20e3 THIS MONTH\n   ${counts['THIS MONTH']} leads\n\n4\ufe0f\u20e3 FLEXIBLE\n   ${counts['FLEXIBLE']} leads\n\n0\ufe0f\u20e3 Back\n\n_Reply with a number_`;\nreturn [{ json: { phone, msg } }];"
+      }
+    },
+    {
+      "id": "914d04f1-3544-4d19-98f3-edd8c73def08",
+      "name": "Send Urgency Menu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        4600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{ $('Format Urgency Menu').item.json.phone }}\",\"type\":\"text\",\"text\":{\"preview_url\":false,\"body\":{{ JSON.stringify($('Format Urgency Menu').item.json.msg) }}}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "556a7829-86e1-4e5a-99eb-b7eaf4b3c517",
+      "name": "Get Leads by Urgency",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        4900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ (() => { const ad = JSON.parse($(\"State Machine\").item.json.actionData || \"{}\"); const base = [[\"urgency\",\"=\",ad.urgency],[\"status\",\"in\",[\"Posted to Groups\",\"Introductions Sent - Awaiting Vendor Response\",\"Has Interested Vendors\"]],[\"is_active\",\"=\",1]]; if (!ad.isPremium && ad.cityState) { const city = (ad.cityState||\"\").split(\",\")[0].trim(); if (city) base.push([\"location\",\"like\",\"%\"+city+\"%\"]); } return JSON.stringify(base); })() }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"lead_type\",\"title\",\"description\",\"location\",\"urgency\",\"budget\",\"status\",\"creation\",\"tier\"]"
+            },
+            {
+              "name": "order_by",
+              "value": "creation desc"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            },
+            {
+              "name": "limit_start",
+              "value": "={{ JSON.parse($('State Machine').item.json.actionData || '{}').offset || 0 }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "af0d42d8-56d6-4bf0-84a2-63af061e68f3",
+      "name": "Format Urgency Lead List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        4900
+      ],
+      "parameters": {
+        "jsCode": "\nconst smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst sessionData = JSON.parse(smData.sessionData || '{}');\nconst leadsRaw = $input.first().json;\nlet leads = leadsRaw?.data || [];\nconst isPremium = actionData.isPremium;\n\n// Free tier: additional industry filter\nconst industry = (actionData.industry || '').toLowerCase();\nif (!isPremium && industry) {\n  const filtered = leads.filter(l => {\n    const text = ((l.description || '') + ' ' + (l.title || '')).toLowerCase();\n    return text.includes(industry);\n  });\n  if (filtered.length > 0) leads = filtered;\n}\n\nconst storedLeads = leads.map(l => ({\n  lead_id: l.lead_id || l.name,\n  title: l.title || '',\n  description: l.description || '',\n  location: l.location || '',\n  urgency: l.urgency || '',\n  budget: l.budget || '',\n  lead_type: l.lead_type || '',\n  tier: l.tier || 'FREE',\n  creation: l.creation || ''\n}));\n\nfunction timeAgo(c) {\n  if (!c) return '';\n  const h = Math.floor((Date.now() - new Date(c).getTime()) / 3600000);\n  return h < 1 ? 'Just now' : h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';\n}\n\nconst typeIcons = { BUY: '\ud83d\uded2', SELL: '\ud83c\udff7\ufe0f', 'SERVICE NEED': '\ud83d\udd27', 'SERVICE OFFER': '\ud83d\udcbc' };\n\nlet listLines;\nif (leads.length === 0) {\n  listLines = '_No leads found._';\n} else {\n  listLines = leads.slice(0, 20).map((l, i) => {\n    const icon = typeIcons[l.lead_type] || '\ud83d\udccb';\n    const budget = l.budget ? `\u20b9${l.budget}` : 'Negotiable';\n    return `*${i+1}.* ${icon} ${l.title || l.lead_id}\\n   \ud83d\udccd ${l.location||'N/A'} | \ud83d\udcb0 ${budget}\\n   \u23f0 ${l.urgency||'FLEXIBLE'} | \ud83d\udd50 ${timeAgo(l.creation)}`;\n  }).join('\\n\\n');\n}\n\nconst headerNote = isPremium\n  ? `\u2b50 All leads \u2014 ${leads.length} found`\n  : `\u26a0\ufe0f Free Tier \u2014 ${leads.length} found near *${actionData.cityState || 'your city'}*`;\n\nconst newSession = { ...sessionData, current_leads: storedLeads, search_offset: actionData.offset || 0 };\n\nreturn [{ json: { phone, leads, listLines, headerNote, isPremium, sessionData: JSON.stringify(newSession), sessionName: smData.sessionName } }];\n"
+      }
+    },
+    {
+      "id": "812192c9-c9b5-40f0-97b6-0ed904acd62f",
+      "name": "Update Session Urg Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        4900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/={ $('Format Urgency Lead List').item.json.sessionName }",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"session_data\": {{ JSON.stringify($(\"Format Urgency Lead List\").item.json.sessionData) }}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "417f90d5-67a5-4490-8383-890d219c9903",
+      "name": "Send Urgency Lead List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        4900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const d = $(\"Format Urgency Lead List\").first().json; const ad = JSON.parse($(\"State Machine\").first().json.actionData || \"{}\"); const urg = ad.urgency || \"\"; const msg = `\u23f0 *${urg} LEADS*\n\n${d.headerNote}\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n${d.listLines}\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n${d.leads.length > 0 ? \"Reply with lead number for details\nOr *MORE* for next batch\nOr *0* to go back\" : \"Reply *0* to go back\"}${!d.isPremium ? \"\n\n\ud83d\udca1 Upgrade to Premium for India-wide access\" : \"\"}`; return JSON.stringify({ messaging_product: \"whatsapp\", to: d.phone, type: \"text\", text: { preview_url: false, body: msg } }); })() }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "cf900122-c1e6-470f-a1da-7a91adcd6028",
+      "name": "Get Recent Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        5200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ (() => { const ad = JSON.parse($(\"State Machine\").item.json.actionData || \"{}\"); const since = new Date(Date.now() - 7*24*3600000).toISOString().split(\"T\")[0]; const base = [[\"status\",\"in\",[\"Posted to Groups\",\"Introductions Sent - Awaiting Vendor Response\",\"Has Interested Vendors\"]],[\"is_active\",\"=\",1],[\"creation\",\">=\",since]]; if (!ad.isPremium && ad.cityState) { const city = (ad.cityState||\"\").split(\",\")[0].trim(); if (city) base.push([\"location\",\"like\",\"%\"+city+\"%\"]); } return JSON.stringify(base); })() }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"lead_type\",\"title\",\"description\",\"location\",\"urgency\",\"budget\",\"status\",\"creation\",\"tier\"]"
+            },
+            {
+              "name": "order_by",
+              "value": "creation desc"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "limit_start",
+              "value": "={{ JSON.parse($('State Machine').item.json.actionData || '{}').offset || 0 }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "b36eea73-f050-4961-a1e8-45a6b39d603c",
+      "name": "Format Recent Lead List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        5200
+      ],
+      "parameters": {
+        "jsCode": "\nconst smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst sessionData = JSON.parse(smData.sessionData || '{}');\nconst leadsRaw = $input.first().json;\nlet leads = leadsRaw?.data || [];\nconst isPremium = actionData.isPremium;\n\nconst industry = (actionData.industry || '').toLowerCase();\nif (!isPremium && industry) {\n  const filtered = leads.filter(l => ((l.description||'')+(l.title||'')).toLowerCase().includes(industry));\n  if (filtered.length > 0) leads = filtered;\n}\n\nconst storedLeads = leads.map(l => ({ lead_id: l.lead_id||l.name, title: l.title||'', description: l.description||'', location: l.location||'', urgency: l.urgency||'', budget: l.budget||'', lead_type: l.lead_type||'', tier: l.tier||'FREE', creation: l.creation||'' }));\n\nconst typeIcons = { BUY: '\ud83d\uded2', SELL: '\ud83c\udff7\ufe0f', 'SERVICE NEED': '\ud83d\udd27', 'SERVICE OFFER': '\ud83d\udcbc' };\nfunction timeAgo(c) { if (!c) return ''; const h = Math.floor((Date.now()-new Date(c).getTime())/3600000); return h<1?'Just now':h<24?h+'h ago':Math.floor(h/24)+'d ago'; }\n\n// Group by recency\nconst today = new Date().toDateString();\nconst yesterday = new Date(Date.now()-86400000).toDateString();\nconst grouped = { today: [], yesterday: [], week: [] };\nfor (const l of leads.slice(0,50)) {\n  const d = new Date(l.creation).toDateString();\n  if (d === today) grouped.today.push(l);\n  else if (d === yesterday) grouped.yesterday.push(l);\n  else grouped.week.push(l);\n}\n\nlet idx = 1;\nlet listLines = '';\nlet allIndexed = [];\nconst renderGroup = (label, items) => {\n  if (!items.length) return '';\n  const lines = items.map(l => {\n    const icon = typeIcons[l.lead_type]||'\ud83d\udccb';\n    const budget = l.budget?`\u20b9${l.budget}`:'Negotiable';\n    allIndexed.push(l);\n    return `*${idx++}.* ${icon} ${l.title||l.lead_id}\\n   \ud83d\udccd ${l.location||'N/A'} | \ud83d\udcb0 ${budget} | \u23f0 ${l.urgency||'FLEXIBLE'}`;\n  }).join('\\n\\n');\n  return `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\\n*${label} (${items.length})*\\n\\n${lines}\\n\\n`;\n};\n\nlistLines = renderGroup('TODAY', grouped.today) + renderGroup('YESTERDAY', grouped.yesterday) + renderGroup('THIS WEEK', grouped.week);\nif (!listLines) listLines = '_No recent leads found._';\n\nconst headerNote = isPremium ? `\u2b50 All leads \u2014 last 7 days (${leads.length} total)` : `\u26a0\ufe0f Free Tier \u2014 near *${actionData.cityState||'your city'}* (${leads.length} found)`;\nconst newSession = { ...sessionData, current_leads: storedLeads, search_offset: actionData.offset||0 };\n\nreturn [{ json: { phone, leads: allIndexed, listLines, headerNote, isPremium, sessionData: JSON.stringify(newSession), sessionName: smData.sessionName } }];\n"
+      }
+    },
+    {
+      "id": "46c99fe1-c5f1-4cd9-a66b-d3e497da6adc",
+      "name": "Update Session Recent Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        5200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/={ $('Format Recent Lead List').item.json.sessionName }",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"session_data\": {{ JSON.stringify($(\"Format Recent Lead List\").item.json.sessionData) }}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "f0daccd1-068f-42d1-9583-812e844b0d75",
+      "name": "Send Recent Lead List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        5200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const d = $(\"Format Recent Lead List\").first().json; const msg = `\ud83d\udccb *ALL RECENT LEADS*\n\nShowing leads from last 7 days\n${d.headerNote}\n\n${d.listLines}\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n${d.leads.length>0?\"Reply with lead number for details\nOr *MORE* for older leads\nOr *0* to go back\":\"Reply *0* to go back\"}${!d.isPremium?\"\n\n\ud83d\udca1 Upgrade to Premium for all leads across India\":\"\"}`; return JSON.stringify({ messaging_product: \"whatsapp\", to: d.phone, type: \"text\", text: { preview_url: false, body: msg } }); })() }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a29145a3-9d47-4204-9363-7bd14e0c1b90",
+      "name": "Get More Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        5500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ (() => { const ad = JSON.parse($(\"State Machine\").item.json.actionData || \"{}\"); const base = [[\"status\",\"in\",[\"Posted to Groups\",\"Introductions Sent - Awaiting Vendor Response\",\"Has Interested Vendors\"]],[\"is_active\",\"=\",1]]; if (ad.category) base.push([\"lead_type\",\"=\",ad.category]); if (ad.urgency) base.push([\"urgency\",\"=\",ad.urgency]); if (ad.location && ad.location !== \"All India\") base.push([\"location\",\"like\",\"%\"+ad.location+\"%\"]); if (!ad.isPremium && ad.cityState && !ad.location && !ad.category) { const city = (ad.cityState||\"\").split(\",\")[0].trim(); if (city) base.push([\"location\",\"like\",\"%\"+city+\"%\"]); } return JSON.stringify(base); })() }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"lead_type\",\"title\",\"description\",\"location\",\"urgency\",\"budget\",\"status\",\"creation\",\"tier\"]"
+            },
+            {
+              "name": "order_by",
+              "value": "creation desc"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            },
+            {
+              "name": "limit_start",
+              "value": "={{ JSON.parse($('State Machine').item.json.actionData || '{}').offset || 0 }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "5ca0a461-1c11-48c2-b8cd-57dddefa8306",
+      "name": "Format More Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        5500
+      ],
+      "parameters": {
+        "jsCode": "\nconst smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst sessionData = JSON.parse(smData.sessionData || '{}');\nconst leadsRaw = $input.first().json;\nlet leads = leadsRaw?.data || [];\nconst isPremium = actionData.isPremium;\n\n// Free tier: additional industry filter\nconst industry = (actionData.industry || '').toLowerCase();\nif (!isPremium && industry) {\n  const filtered = leads.filter(l => {\n    const text = ((l.description || '') + ' ' + (l.title || '')).toLowerCase();\n    return text.includes(industry);\n  });\n  if (filtered.length > 0) leads = filtered;\n}\n\nconst storedLeads = leads.map(l => ({\n  lead_id: l.lead_id || l.name,\n  title: l.title || '',\n  description: l.description || '',\n  location: l.location || '',\n  urgency: l.urgency || '',\n  budget: l.budget || '',\n  lead_type: l.lead_type || '',\n  tier: l.tier || 'FREE',\n  creation: l.creation || ''\n}));\n\nfunction timeAgo(c) {\n  if (!c) return '';\n  const h = Math.floor((Date.now() - new Date(c).getTime()) / 3600000);\n  return h < 1 ? 'Just now' : h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';\n}\n\nconst typeIcons = { BUY: '\ud83d\uded2', SELL: '\ud83c\udff7\ufe0f', 'SERVICE NEED': '\ud83d\udd27', 'SERVICE OFFER': '\ud83d\udcbc' };\n\nlet listLines;\nif (leads.length === 0) {\n  listLines = '_No leads found._';\n} else {\n  listLines = leads.slice(0, 20).map((l, i) => {\n    const icon = typeIcons[l.lead_type] || '\ud83d\udccb';\n    const budget = l.budget ? `\u20b9${l.budget}` : 'Negotiable';\n    return `*${i+1}.* ${icon} ${l.title || l.lead_id}\\n   \ud83d\udccd ${l.location||'N/A'} | \ud83d\udcb0 ${budget}\\n   \u23f0 ${l.urgency||'FLEXIBLE'} | \ud83d\udd50 ${timeAgo(l.creation)}`;\n  }).join('\\n\\n');\n}\n\nconst headerNote = isPremium\n  ? `\u2b50 All leads \u2014 ${leads.length} found`\n  : `\u26a0\ufe0f Free Tier \u2014 ${leads.length} found near *${actionData.cityState || 'your city'}*`;\n\nconst newSession = { ...sessionData, current_leads: storedLeads, search_offset: actionData.offset || 0 };\n\nreturn [{ json: { phone, leads, listLines, headerNote, isPremium, sessionData: JSON.stringify(newSession), sessionName: smData.sessionName } }];\n"
+      }
+    },
+    {
+      "id": "3ac14e98-d8a0-4403-8428-91773889fe46",
+      "name": "Update Session More Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        5500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Session/={ $('Format More Leads').item.json.sessionName }",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"session_data\": {{ JSON.stringify($(\"Format More Leads\").item.json.sessionData) }}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "66c082d2-e05e-4df8-9577-4546133da880",
+      "name": "Send More Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        5500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const d = $(\"Format More Leads\").first().json; const ad = JSON.parse($(\"State Machine\").first().json.actionData || \"{}\"); const msg = `\ud83d\udccb *MORE LEADS*\n\n${d.headerNote}\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n${d.listLines}\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n${d.leads.length>0?\"Reply with lead number for details\nOr *MORE* for next batch\nOr *0* to go back\":\"No more leads. Reply *0* to go back\"}${!d.isPremium?\"\n\n\ud83d\udca1 Upgrade to Premium for India-wide access\":\"\"}`; return JSON.stringify({ messaging_product: \"whatsapp\", to: d.phone, type: \"text\", text: { preview_url: false, body: msg } }); })() }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
     }
   ],
   "pinData": {},
@@ -4361,12 +4971,42 @@
             "index": 0
           }
         ],
+        [
+          {
+            "node": "Get Leads by Location",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Urgency Counts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Leads by Urgency",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Recent Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [],
-        [],
-        [],
-        [],
-        [],
-        [],
+        [
+          {
+            "node": "Get More Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [],
         [],
         [],
@@ -5113,6 +5753,160 @@
         [
           {
             "node": "Send Category Lead List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Leads by Location": {
+      "main": [
+        [
+          {
+            "node": "Format Location Lead List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Location Lead List": {
+      "main": [
+        [
+          {
+            "node": "Update Session Loc Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session Loc Leads": {
+      "main": [
+        [
+          {
+            "node": "Send Location Lead List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Urgency Counts": {
+      "main": [
+        [
+          {
+            "node": "Format Urgency Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Urgency Menu": {
+      "main": [
+        [
+          {
+            "node": "Send Urgency Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Leads by Urgency": {
+      "main": [
+        [
+          {
+            "node": "Format Urgency Lead List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Urgency Lead List": {
+      "main": [
+        [
+          {
+            "node": "Update Session Urg Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session Urg Leads": {
+      "main": [
+        [
+          {
+            "node": "Send Urgency Lead List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Leads": {
+      "main": [
+        [
+          {
+            "node": "Format Recent Lead List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Recent Lead List": {
+      "main": [
+        [
+          {
+            "node": "Update Session Recent Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session Recent Leads": {
+      "main": [
+        [
+          {
+            "node": "Send Recent Lead List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get More Leads": {
+      "main": [
+        [
+          {
+            "node": "Format More Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format More Leads": {
+      "main": [
+        [
+          {
+            "node": "Update Session More Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session More Leads": {
+      "main": [
+        [
+          {
+            "node": "Send More Leads",
             "type": "main",
             "index": 0
           }
