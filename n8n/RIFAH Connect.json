@@ -5079,6 +5079,276 @@
           }
         }
       }
+    },
+    {
+      "id": "a4459df0-cd51-422c-84ab-029f570e03ba",
+      "name": "Get All Leads for Responses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        7000
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "=[[\"is_active\",\"=\",1]]"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"lead_id\",\"title\",\"location\",\"urgency\",\"status\",\"interested_vendors\",\"creation\",\"tier\"]"
+            },
+            {
+              "name": "order_by",
+              "value": "creation desc"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "8f7e4e17-4472-4fe2-983b-95729e695e6d",
+      "name": "Format My Responses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        7000
+      ],
+      "parameters": {
+        "jsCode": "\nconst smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst rifah_id = actionData.rifah_id || actionData.memberId || '';\nconst leadsRaw = $input.first().json;\nconst allLeads = leadsRaw?.data || [];\n\n// Find leads where this vendor responded\nconst myResponses = allLeads.filter(lead => {\n  try {\n    const vendors = JSON.parse(lead.interested_vendors || '[]');\n    return vendors.some(v => v.vendor_id === rifah_id);\n  } catch(e) { return false; }\n});\n\nfunction getMyVendorEntry(lead) {\n  try {\n    const vendors = JSON.parse(lead.interested_vendors || '[]');\n    return vendors.find(v => v.vendor_id === rifah_id) || null;\n  } catch(e) { return null; }\n}\n\nfunction timeAgo(c) {\n  if (!c) return '';\n  const h = Math.floor((Date.now() - new Date(c).getTime()) / 3600000);\n  return h < 1 ? 'Just now' : h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';\n}\n\nconst pending = myResponses.filter(l => { const v = getMyVendorEntry(l); return v?.status === 'Pending Admin Approval'; });\nconst approved = myResponses.filter(l => { const v = getMyVendorEntry(l); return v?.status === 'Approved - Connected'; });\nconst declined = myResponses.filter(l => { const v = getMyVendorEntry(l); return v?.status === 'Declined by Admin'; });\n\nlet msg = `\ud83d\udcca *MY LEAD RESPONSES*\\n\\nTotal: ${myResponses.length} responses\\n`;\n\nif (myResponses.length === 0) {\n  msg += `\\nYou haven't responded to any leads yet.\\n\\nStart searching: Reply *SEARCH*`;\n} else {\n  if (pending.length > 0) {\n    msg += `\\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\\n*PENDING REVIEW (${pending.length})*\\n\\n`;\n    msg += pending.slice(0, 5).map((l, i) => {\n      const v = getMyVendorEntry(l);\n      return `${i+1}. *${l.lead_id}*\\n   ${(l.title||'').substring(0,45)}...\\n   \ud83d\udcca Score: ${v?.compatibility_score||0}/100\\n   \ud83d\udd50 ${timeAgo(v?.submitted_at)}`;\n    }).join('\\n\\n');\n  }\n\n  if (approved.length > 0) {\n    msg += `\\n\\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\\n*\u2705 APPROVED - CONNECTED (${approved.length})*\\n\\n`;\n    msg += approved.slice(0, 3).map((l, i) => {\n      return `${i+1}. *${l.lead_id}*\\n   ${(l.title||'').substring(0,45)}...`;\n    }).join('\\n\\n');\n  }\n\n  if (declined.length > 0) {\n    msg += `\\n\\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\\n*\u274c DECLINED (${declined.length})*\\n\\n`;\n    msg += declined.slice(0, 3).map(l => `\u2022 ${l.lead_id} \u2014 ${(l.title||'').substring(0,40)}`).join('\\n');\n  }\n\n  msg += `\\n\\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\\nReply *0* to go back`;\n}\n\nreturn [{ json: { phone, msg } }];\n"
+      }
+    },
+    {
+      "id": "342a22bb-d789-435e-8be5-d861ffdd2d3a",
+      "name": "Send My Responses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        7000
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{ $('Format My Responses').item.json.phone }}\",\"type\":\"text\",\"text\":{\"preview_url\":false,\"body\":{{ JSON.stringify($('Format My Responses').item.json.msg) }}}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "66d692d2-443e-4771-bc70-026731b336c6",
+      "name": "Format Saved Searches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        7300
+      ],
+      "parameters": {
+        "jsCode": "\nconst smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\n\nlet savedSearches = [];\ntry { savedSearches = JSON.parse(actionData.searchPreferences || '[]'); } catch(e) {}\n\nconst alertEnabled = actionData.alertEnabled || 0;\n\nlet msg = '';\nif (savedSearches.length === 0) {\n  msg = `\u2b50 *MY SAVED SEARCHES*\n\n${alertEnabled ? '\ud83d\udd14 Daily alerts: ON' : '\ud83d\udd15 Daily alerts: OFF'}\n\nYou haven't saved any searches yet.\n\n*How to save a search:*\n1. Browse leads by category, location, or urgency\n2. Reply *SAVE SEARCH* when viewing the results list\n3. Name your search for quick access\n\nSaved searches will appear here with daily new-lead counts.\n\nReply *0* to go back`;\n} else {\n  function timeAgo(c) {\n    if (!c) return 'Never';\n    const h = Math.floor((Date.now() - new Date(c).getTime()) / 3600000);\n    return h < 1 ? 'Just now' : h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';\n  }\n\n  const searchLines = savedSearches.slice(0, 10).map((s, i) => {\n    const filters = s.filters || {};\n    const parts = [\n      filters.category ? `Category: ${filters.category}` : null,\n      filters.location ? `Location: ${filters.location}` : null,\n      filters.urgency ? `Urgency: ${filters.urgency}` : null,\n    ].filter(Boolean).join(', ') || 'All leads';\n\n    return `*${i+1}.* ${s.name}\\n   \ud83d\udd0d ${parts}\\n   \ud83d\udd50 Saved: ${timeAgo(s.created_at)}`;\n  }).join('\\n\\n');\n\n  msg = `\u2b50 *MY SAVED SEARCHES*\n\n${alertEnabled ? '\ud83d\udd14 Daily alerts: ON' : '\ud83d\udd15 Daily alerts: OFF'}\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n${searchLines}\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\nReply with search number to run it\nOr *ALERTS* to toggle daily notifications\nOr *0* to go back`;\n}\n\nreturn [{ json: { phone, msg } }];\n"
+      }
+    },
+    {
+      "id": "317c55f3-daad-44f3-9e8b-eb74df4aec02",
+      "name": "Send Saved Searches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        7300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{ $('Format Saved Searches').item.json.phone }}\",\"type\":\"text\",\"text\":{\"preview_url\":false,\"body\":{{ JSON.stringify($('Format Saved Searches').item.json.msg) }}}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "42ea81f8-a589-459f-9952-56ba70a99d85",
+      "name": "Build Save Search Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        7600
+      ],
+      "parameters": {
+        "jsCode": "\nconst smData = $('State Machine').first().json;\nconst phone = smData.phone;\nconst actionData = JSON.parse(smData.actionData || '{}');\nconst sessionData = JSON.parse(smData.sessionData || '{}');\n\n// Get existing saved searches from member (passed via actionData from a prior get-member call)\n// We'll fetch fresh from ERPNext in the next node\nreturn [{ json: {\n  phone,\n  memberId: actionData.memberId || '',\n  searchName: actionData.searchName || '',\n  searchCriteria: actionData.searchCriteria || '{}',\n} }];\n"
+      }
+    },
+    {
+      "id": "b882f125-9765-4474-84f4-62d79d44cc2f",
+      "name": "Get Member for Save Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        7600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "url": "=http://frontend:8080/api/resource/RIFAH Member",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ JSON.stringify([[\"rifah_id\",\"=\",$(\"Build Save Search Data\").item.json.memberId]]) }}"
+            },
+            {
+              "name": "fields",
+              "value": "[\"name\",\"rifah_id\",\"search_preferences\",\"daily_alert_enabled\"]"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "1983ff9e-1e72-4fe5-967d-db67b58cf32c",
+      "name": "Merge Save Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        7600
+      ],
+      "parameters": {
+        "jsCode": "\nconst buildData = $('Build Save Search Data').first().json;\nconst memberRaw = $input.first().json;\nconst members = memberRaw?.data || [];\nconst member = members.length > 0 ? members[0] : {};\n\nlet savedSearches = [];\ntry { savedSearches = JSON.parse(member.search_preferences || '[]'); } catch(e) {}\n\nconst newSearch = {\n  name: buildData.searchName,\n  filters: (() => { try { return JSON.parse(buildData.searchCriteria); } catch(e) { return {}; } })(),\n  created_at: new Date().toISOString(),\n  last_run: null,\n  alert_enabled: false\n};\n\nsavedSearches.push(newSearch);\n\nreturn [{ json: {\n  phone: buildData.phone,\n  memberDocName: member.name || buildData.memberId,\n  updatedSearches: JSON.stringify(savedSearches),\n  searchName: buildData.searchName,\n  totalSearches: savedSearches.length\n} }];\n"
+      }
+    },
+    {
+      "id": "a28a6960-3e13-485f-9e40-378a36be051c",
+      "name": "Store Save Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        7600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TrXdy0OKoZPaxLo0",
+          "name": "ERPNext API Auth"
+        }
+      },
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://frontend:8080/api/resource/RIFAH Member/={ $('Merge Save Search').item.json.memberDocName }",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"search_preferences\": {{ JSON.stringify($(\"Merge Save Search\").item.json.updatedSearches) }}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "35f47740-28ff-4e1a-a7dd-38c17a9083a3",
+      "name": "Send Save Search Confirm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2460,
+        7600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fdDoREIPqvBGQWFI",
+          "name": "Meta WhatsApp API Auth"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/1051021614753488/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const d = $(\"Merge Save Search\").first().json; const msg = `\u2705 *Search Saved!*\\n\\n\ud83d\udccc Name: *${d.searchName}*\\n\ud83d\udcca Total saved searches: ${d.totalSearches}\\n\\nAccess anytime via Find Lead \u2192 My Saved Searches\\n\\nWould you like daily alerts for new matching leads?\\nReply *YES* to enable alerts\\nReply *NO* to skip\\nReply *0* to go back`; return JSON.stringify({ messaging_product: \"whatsapp\", to: d.phone, type: \"text\", text: { preview_url: false, body: msg } }); })() }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
     }
   ],
   "pinData": {},
@@ -5417,9 +5687,27 @@
             "index": 0
           }
         ],
-        [],
-        [],
-        [],
+        [
+          {
+            "node": "Get All Leads for Responses",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Saved Searches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Save Search Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Send Find Lead Menu",
@@ -6441,6 +6729,83 @@
         [
           {
             "node": "Store F3 Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Leads for Responses": {
+      "main": [
+        [
+          {
+            "node": "Format My Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format My Responses": {
+      "main": [
+        [
+          {
+            "node": "Send My Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Saved Searches": {
+      "main": [
+        [
+          {
+            "node": "Send Saved Searches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Save Search Data": {
+      "main": [
+        [
+          {
+            "node": "Get Member for Save Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Member for Save Search": {
+      "main": [
+        [
+          {
+            "node": "Merge Save Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Save Search": {
+      "main": [
+        [
+          {
+            "node": "Store Save Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Save Search": {
+      "main": [
+        [
+          {
+            "node": "Send Save Search Confirm",
             "type": "main",
             "index": 0
           }
