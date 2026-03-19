@@ -80,7 +80,7 @@ All flows run in a single unified n8n workflow (`n8n/RIFAH Connect.json`).
 | Registration | Member Registration / Profile Update | 1 | ✅ Complete | 68/69 (99%) |
 | Share Lead (Free) | Lead sharing for FREE tier members | 2 | ✅ Complete | 40/40 (100%) |
 | Share Lead (Premium) | AI-matched lead sharing for PREMIUM members | 2 | ✅ Complete | — |
-| Find a Lead | Browse & respond to live requirements | 3 | ✅ Complete | — |
+| Find a Lead | Browse & respond to live requirements | 3 | ✅ Complete | 60/60 (100%) |
 | My Profile | View/edit member profile | 4 | 🚧 Planned | — |
 | Help & Support | Contact RIFAH team | 5 | 🚧 Planned | — |
 
@@ -202,10 +202,23 @@ node test_suite/test_flow2a.js --clean     # wipe all Flow 2A test data
 
 ```bash
 node scripts/populate_test_leads.js           # seed test leads first
-node test_suite/test_flow3.js                 # all suites
+node scripts/populate_test_leads.js --list    # verify seeded leads
+node scripts/populate_test_leads.js --clean   # reset test leads
+
+node test_suite/test_flow3.js                 # all 13 suites (60 tests)
+node test_suite/test_flow3.js --infra         # infrastructure check
+node test_suite/test_flow3.js --menu          # find lead menu entry
 node test_suite/test_flow3.js --category      # browse by category
+node test_suite/test_flow3.js --location      # search by location (Premium)
+node test_suite/test_flow3.js --urgency       # browse by urgency
+node test_suite/test_flow3.js --recent        # view all recent leads
+node test_suite/test_flow3.js --saved         # saved searches gate
+node test_suite/test_flow3.js --responses     # my responses
+node test_suite/test_flow3.js --detail        # lead detail view
 node test_suite/test_flow3.js --qualify       # vendor qualification + submit
-node test_suite/test_flow3.js --limit         # daily limit (FREE 3/day)
+node test_suite/test_flow3.js --limit         # daily limit enforcement (FREE 3/day)
+node test_suite/test_flow3.js --save          # save search flow (Premium)
+node test_suite/test_flow3.js --edge          # edge cases
 node test_suite/test_flow3.js --clean         # wipe test data
 ```
 
