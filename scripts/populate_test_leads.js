@@ -329,7 +329,7 @@ async function listLeads(limit = 50) {
 
 async function createLead(lead, index) {
   // Generate a lead_id similar to how Flow 2A/2B does it
-  const tier  = lead.tier === 'PREM' ? 'PREM' : 'FREE';
+  const tier  = lead.tier === 'PREM' || lead.tier === 'PREMIUM' ? 'PREM' : 'FREE';
   const year  = new Date().getFullYear();
   const num   = String(index + 1).padStart(4, '0');
   const leadId = `LEAD-${tier}-TEST-${num}`;
@@ -345,7 +345,7 @@ async function createLead(lead, index) {
     member_name:      lead.member_name,
     member_phone:     lead.member_phone,
     member_id:        lead.member_id,
-    tier:             lead.tier,
+    tier:             (lead.tier === 'PREM') ? 'PREMIUM' : lead.tier,
     status:           'Posted to Groups',
     is_active:        1,
     interested_vendors: '[]',
