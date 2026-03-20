@@ -298,11 +298,11 @@
           "conditions": [
             {
               "id": "f2b-c3",
-              "leftValue": "={{ $json.isUpdate }}",
-              "rightValue": true,
+              "leftValue": "={{ $json.urlSuffix }}",
+              "rightValue": "",
               "operator": {
-                "type": "boolean",
-                "operation": "equal"
+                "type": "string",
+                "operation": "notEquals"
               }
             }
           ],
@@ -421,14 +421,21 @@
                 "conditions": [
                   {
                     "id": "f2b-sw1",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "create_premium_lead",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             },
@@ -438,14 +445,21 @@
                 "conditions": [
                   {
                     "id": "f2b-sw2",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "generate_ai_questions",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             },
@@ -455,14 +469,21 @@
                 "conditions": [
                   {
                     "id": "f2b-sw3",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "send_introductions",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             },
@@ -472,14 +493,21 @@
                 "conditions": [
                   {
                     "id": "f2b-sw4",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "vendor_lead_lookup",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             },
@@ -489,14 +517,21 @@
                 "conditions": [
                   {
                     "id": "f2b-sw5",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "generate_vendor_questions",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             },
@@ -506,14 +541,21 @@
                 "conditions": [
                   {
                     "id": "f2b-sw6",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "calculate_vendor_score",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             },
@@ -523,14 +565,21 @@
                 "conditions": [
                   {
                     "id": "f2b-sw7",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "submit_vendor_interest",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             },
@@ -540,14 +589,45 @@
                 "conditions": [
                   {
                     "id": "f2b-sw8",
-                    "leftValue": "={{ $('State Machine Premium').item.json.action }}",
+                    "leftValue": "={{ $json.action }}",
                     "rightValue": "admin_approval",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
                     }
                   }
-                ]
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "vendor_declined",
+              "conditions": {
+                "conditions": [
+                  {
+                    "id": "f2b-sw9",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "vendor_declined",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "combinator": "and"
               },
               "renameOutput": true
             }
@@ -568,7 +648,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const sm = $('State Machine Premium').first().json;\nconst ad = JSON.parse(sm.actionData || '{}');\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\nconst phone = sm.phone;\n\nconst leadType = ad.lead_type || ad.lead_type || 'BUY';\nconst desc = ad.lead_description || '';\nconst loc = ad.lead_location || '';\nconst urgency = ad.lead_urgency || 'FLEXIBLE';\nconst budget = ad.lead_budget || null;\nconst memberId = ad.member_id || '';\nconst memberName = ad.member_name || '';\n\n// Collect AI answers\nconst aiAnswers = {};\nfor (let i = 1; i <= 6; i++) {\n  if (ad[`ai_answer_${i}`]) aiAnswers[`Q${i}`] = ad[`ai_answer_${i}`];\n}\n\nconst leadId = `LEAD-PREM-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;\nconst title = `${leadType}: ${desc.substring(0,60)}${desc.length > 60 ? '...' : ''}`;\n\nreturn [{ json: {\n  lead_id: leadId,\n  member_id: memberId,\n  member_name: memberName,\n  member_phone: phone,\n  tier: 'PREMIUM',\n  lead_type: leadType,\n  title,\n  description: desc,\n  location: loc,\n  urgency,\n  budget,\n  ai_qualification: JSON.stringify(aiAnswers),\n  status: 'Processing - Running Matching Algorithm',\n  created_at: ts,\n  posted_to_groups: '0',\n  is_premium_request: 0,\n  matched_vendors: '[]',\n  introduction_sent: '[]',\n  interested_vendors: '[]',\n  phone,\n  sd: sm.sessionData\n} }];\n"
+        "jsCode": "const sm = $('State Machine Premium').first().json;\nconst ad = JSON.parse(sm.actionData || '{}');\nconst ts = new Date().toISOString().replace('T',' ').substring(0,19);\nconst phone = sm.phone;\n\nconst leadType = ad.lead_type || ad.lead_type || 'BUY';\nconst desc = ad.lead_description || '';\nconst loc = ad.lead_location || '';\nconst urgency = ad.lead_urgency || 'FLEXIBLE';\nconst budget = ad.lead_budget || null;\nconst memberId = ad.member_id || '';\nconst memberName = ad.member_name || '';\n\n// Collect AI answers\nconst aiAnswers = {};\nfor (let i = 1; i <= 6; i++) {\n  if (ad[`ai_answer_${i}`]) aiAnswers[`Q${i}`] = ad[`ai_answer_${i}`];\n}\n\nconst leadId = `LEAD-PREM-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;\nconst title = `${leadType}: ${desc.substring(0,60)}${desc.length > 60 ? '...' : ''}`;\n\nreturn [{ json: {\n  lead_id: leadId,\n  member_id: memberId,\n  member_name: memberName,\n  member_phone: phone,\n  tier: 'PREMIUM',\n  lead_type: leadType,\n  title,\n  description: desc,\n  location: loc,\n  urgency,\n  budget,\n  ai_qualification: JSON.stringify(aiAnswers),\n  status: 'Awaiting User Response',\n  created_at: ts,\n  posted_to_groups: '0',\n  is_premium_request: 0,\n  matched_vendors: '[]',\n  introduction_sent: '[]',\n  interested_vendors: '[]',\n  phone,\n  sd: sm.sessionData\n} }];\n"
       },
       "id": "f2b-node-15",
       "name": "Build Premium Lead Data",
@@ -638,7 +718,7 @@
             },
             {
               "name": "status",
-              "value": "Processing - Running Matching Algorithm"
+              "value": "Awaiting User Response"
             },
             {
               "name": "created_at",
@@ -758,7 +838,7 @@
             },
             {
               "name": "status",
-              "value": "Vendor Selection"
+              "value": "Awaiting User Response"
             }
           ]
         },
@@ -902,7 +982,7 @@
           "conditions": [
             {
               "id": "f2b-c4",
-              "leftValue": "={{ $('Format Vendor List').item.json.isFewMatches }}",
+              "leftValue": "={{ $json.isFewMatches }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -983,7 +1063,7 @@
             },
             {
               "name": "to",
-              "value": "={{ $env.ADMIN_WHATSAPP }}"
+              "value": "={{ $json.admin_phone || \"910000000000\" }}"
             },
             {
               "name": "type",
@@ -2154,6 +2234,52 @@
           "name": "Meta WhatsApp API Auth"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f2b-c6",
+              "leftValue": "={{ $('Parse Admin Command').item.json.command }}",
+              "rightValue": "CONNECT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f2b-node-58",
+      "name": "IF Is Connect Command",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// vendor said NOT NOW \u2014 session goes to IDLE\n// This node is a no-op placeholder; a full implementation would\n// look up the RIFAH Lead by lead_id and mark introduction_sent status as Declined.\nconst sm = $('State Machine Premium').first().json;\nlet sd = {};\ntry { sd = JSON.parse(sm.sessionData || '{}'); } catch(e) {}\nreturn [{ json: { status: 'vendor_declined', phone: sm.phone, lead_id: sd.lead_id || '' } }];"
+      },
+      "id": "f2b-node-59",
+      "name": "Update Vendor Declined",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        900
+      ]
     }
   ],
   "connections": {
@@ -2236,6 +2362,16 @@
             "node": "IF Should Send Message",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Prepare Session Upsert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2247,30 +2383,9 @@
             "node": "Send WhatsApp Message",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Prepare Session Upsert",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Switch Action",
-            "type": "main",
-            "index": 0
           }
         ],
-        [
-          {
-            "node": "Prepare Session Upsert",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Switch Action",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Prepare Session Upsert": {
@@ -2335,13 +2450,6 @@
         ],
         [
           {
-            "node": "Call OpenAI Vendor Questions",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
             "node": "Calculate Vendor Score",
             "type": "main",
             "index": 0
@@ -2357,6 +2465,13 @@
         [
           {
             "node": "Parse Admin Command",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Vendor Declined",
             "type": "main",
             "index": 0
           }
@@ -2698,11 +2813,6 @@
       "main": [
         [
           {
-            "node": "Get Lead for Connection",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "Get Vendor Details",
             "type": "main",
             "index": 0
@@ -2732,7 +2842,7 @@
       "main": [
         [
           {
-            "node": "Share Buyer to Vendor",
+            "node": "IF Is Connect Command",
             "type": "main",
             "index": 0
           }
@@ -2743,7 +2853,7 @@
       "main": [
         [
           {
-            "node": "Update Lead Connected",
+            "node": "Share Buyer to Vendor",
             "type": "main",
             "index": 0
           }
@@ -2752,6 +2862,24 @@
     },
     "Share Buyer to Vendor": {
       "main": [
+        [
+          {
+            "node": "Update Lead Connected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Is Connect Command": {
+      "main": [
+        [
+          {
+            "node": "Get Lead for Connection",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Send Decline to Vendor",
@@ -2774,5 +2902,6 @@
     {
       "name": "flow-2b"
     }
-  ]
+  ],
+  "versionId": "275649ee-945a-40fc-92e5-28ed735a9fa0"
 }
