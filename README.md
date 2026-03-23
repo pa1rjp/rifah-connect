@@ -46,12 +46,15 @@ rifah-connect-version1/
 ├── scripts/                # Reusable CLI + module utilities
 │   ├── github.js           #   GitHub API (issues, labels, assignments)
 │   ├── erpnext.js          #   ERPNext API (sessions, members, leads, cleanup)
-│   └── populate_test_leads.js  # Seed 20 test leads for Flow 3 testing
+│   ├── populate_test_leads.js  # Seed 20 test leads for Flow 3 testing
+│   ├── migrate_flow4_doctypes.js  # Create Flow 4 ERPNext doctypes
+│   └── seed_flow4.js       #   Seed articles, videos, events for Flow 4
 ├── test_suite/             # Integration tests for flows
 │   ├── test_flow1.js       #   Registration test suite (68/69 passing)
 │   ├── test_flow2a.js      #   Share Lead (Free) test suite (40/40 passing)
-│   ├── test_flow2b.js      #   Share Lead (Premium) test suite
-│   ├── test_flow3.js       #   Find Lead test suite (13 suites)
+│   ├── test_flow2b.js      #   Share Lead (Premium) test suite (43/43 passing)
+│   ├── test_flow3.js       #   Find Lead test suite (60/60 passing)
+│   ├── test_flow4.js       #   Learn & Grow test suite (47/47 passing)
 │   └── README.md
 ├── misc/                   # Scratch data and utilities
 ├── docker-compose.yml      # Docker stack definition
@@ -68,7 +71,7 @@ rifah-connect-version1/
 | 1 | Register / Update Business | ✅ Complete |
 | 2 | Share a Lead | ✅ Complete |
 | 3 | Find a Lead | ✅ Complete |
-| 4 | My Profile | 🚧 Planned |
+| 4 | Learn & Grow | ✅ Complete |
 | 5 | Help & Support | 🚧 Planned |
 
 ## Flows
@@ -81,7 +84,7 @@ All flows run in a single unified n8n workflow (`n8n/RIFAH Connect.json`).
 | Share Lead (Free) | Lead sharing for FREE tier members | 2 | ✅ Complete | 40/40 (100%) |
 | Share Lead (Premium) | AI-matched lead sharing for PREMIUM members | 2 | ✅ Complete | 43/43 (100%) |
 | Find a Lead | Browse & respond to live requirements | 3 | ✅ Complete | 60/60 (100%) |
-| My Profile | View/edit member profile | 4 | 🚧 Planned | — |
+| Learn & Grow | Browse articles, videos, events & training | 4 | ✅ Complete | 47/47 (100%) |
 | Help & Support | Contact RIFAH team | 5 | 🚧 Planned | — |
 
 > For detailed flow descriptions, conversation scripts, and state machine diagrams, see [documents/flows_overview.md](documents/flows_overview.md).
@@ -220,6 +223,25 @@ node test_suite/test_flow3.js --limit         # daily limit enforcement (FREE 3/
 node test_suite/test_flow3.js --save          # save search flow (Premium)
 node test_suite/test_flow3.js --edge          # edge cases
 node test_suite/test_flow3.js --clean         # wipe test data
+```
+
+### Flow 4 Tests
+
+```bash
+node scripts/migrate_flow4_doctypes.js        # create ERPNext doctypes (once)
+node scripts/seed_flow4.js                    # seed articles, videos, events
+node scripts/seed_flow4.js --clean            # reset seed data
+
+node test_suite/test_flow4.js                 # all 8 suites (47 tests)
+node test_suite/test_flow4.js --infra         # infrastructure checks
+node test_suite/test_flow4.js --nav           # menu navigation
+node test_suite/test_flow4.js --articles      # articles flow
+node test_suite/test_flow4.js --videos        # videos flow
+node test_suite/test_flow4.js --events        # events flow
+node test_suite/test_flow4.js --training      # training + premium gate
+node test_suite/test_flow4.js --tools         # tools & templates
+node test_suite/test_flow4.js --edge          # edge cases
+node test_suite/test_flow4.js --clean         # wipe test data
 ```
 
 See [test_suite/README.md](test_suite/README.md) for details on the testing approach.
