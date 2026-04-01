@@ -21,7 +21,7 @@ const erp   = require('../scripts/erpnext');
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const WEBHOOK = process.env.N8N_FLOW2A_WEBHOOK_URL || 'http://localhost:5678/webhook/flow2a-webhook';
+const WEBHOOK = process.env.N8N_FLOW2A_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/whatsapp-webhook';
 const META_PID = process.env.META_PHONE_NUMBER_ID || '1051021614753488';
 
 const CONFIG = {
@@ -216,7 +216,7 @@ async function testBuyerFlow() {
     doctype: 'RIFAH Session',
     phone_number: phone,
     current_step: 'LEAD_TYPE',
-    session_data: JSON.stringify({ phone }),
+    session_data: JSON.stringify({ phone, flow: 'flow2a' }),
     status: 'Active',
     last_activity: ts
   });
@@ -340,7 +340,7 @@ async function testBuyerFlowVariants() {
   const ts = new Date().toISOString().replace('T',' ').substring(0,19);
   await erp.request(`${erp.BASE}/api/resource/RIFAH Session`, 'POST', {
     doctype: 'RIFAH Session', phone_number: phone, current_step: 'LEAD_TYPE',
-    session_data: JSON.stringify({ phone }), status: 'Active', last_activity: ts
+    session_data: JSON.stringify({ phone, flow: 'flow2a' }), status: 'Active', last_activity: ts
   });
 
   // Test: numeric 2 = SELL
