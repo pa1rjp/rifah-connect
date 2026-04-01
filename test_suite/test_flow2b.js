@@ -23,7 +23,7 @@ const erp   = require('../scripts/erpnext');
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const WEBHOOK  = process.env.N8N_FLOW2B_WEBHOOK_URL || 'http://localhost:5678/webhook/flow2b-webhook';
+const WEBHOOK  = process.env.N8N_FLOW2B_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/whatsapp-webhook';
 const META_PID = process.env.META_PHONE_NUMBER_ID   || '1051021614753488';
 
 const PHONES = {
@@ -78,7 +78,7 @@ function httpRequest(url, options = {}, body = null) {
   });
 }
 
-// ── SEND MESSAGE TO FLOW 2B WEBHOOK ──────────────────────────────────────────
+// ── SEND MESSAGE TO UNIFIED WEBHOOK ──────────────────────────────────────────
 async function sendText(phone, text) {
   const payload = JSON.stringify({
     object: 'whatsapp_business_account',
@@ -150,7 +150,7 @@ async function setSessionStep(phone, step, sessionData = {}) {
     await erp.request(`${BASE}/api/resource/RIFAH Session`, 'POST', {
       phone_number: phone,
       current_step: step,
-      session_data: JSON.stringify(sessionData),
+      session_data: JSON.stringify({ flow: 'flow2b', ...sessionData }),
       status: 'Active'
     });
     // Wait for any in-flight n8n execution to settle, then verify step is still correct
