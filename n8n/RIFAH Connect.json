@@ -6206,7 +6206,7 @@
       }
     },
     {
-      "id": "is-interactive-node",
+      "id": "16c0cf05-72df-4de1-aa86-752ed95ab2e4",
       "name": "Is Interactive Message",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -6240,10 +6240,10 @@
       }
     },
     {
-      "id": "send-interactive-node",
+      "id": "807a7309-a6b1-4dea-8ca1-cca622f40d95",
       "name": "Send Interactive Message",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "typeVersion": 4,
       "position": [
         1792,
         224
