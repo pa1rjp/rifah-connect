@@ -7,6 +7,7 @@ import StatusBadge from '@/components/shared/StatusBadge'
 import TierBadge from '@/components/shared/TierBadge'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import ApprovePremiumModal from '@/components/members/ApprovePremiumModal'
+import ReviewMemberModal from '@/components/members/ReviewMemberModal'
 import AssignGroupsModal from '@/components/members/AssignGroupsModal'
 import { fmtDate } from '@/lib/utils'
 
@@ -16,6 +17,7 @@ export default function Members() {
   const [search, setSearch] = useState('')
   const [tier,   setTier]   = useState('')
   const [status, setStatus] = useState('')
+  const [reviewMember,   setReviewMember]   = useState(null)
   const [approveMember,  setApproveMember]  = useState(null)
   const [assignMember,   setAssignMember]   = useState(null)
   const [suspendTarget,  setSuspendTarget]  = useState(null)
@@ -36,6 +38,10 @@ export default function Members() {
     { key: '_actions', label: '', sortable: false,
       render: (_, r) => (
         <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+          {r.status === 'Pending Admin Review' && (
+            <button onClick={() => setReviewMember(r)}
+              className="text-xs px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600">Review</button>
+          )}
           {r.status === 'Payment Uploaded' && (
             <button onClick={() => setApproveMember(r)}
               className="text-xs px-2 py-1 rounded bg-rifah-teal text-white hover:bg-rifah-dark">Approve</button>
@@ -65,6 +71,7 @@ export default function Members() {
         ? <p className="text-sm text-gray-400">Loading...</p>
         : <DataTable columns={columns} data={data} emptyMsg="No members match the current filters." />}
 
+      <ReviewMemberModal   member={reviewMember}  onClose={() => setReviewMember(null)} />
       <ApprovePremiumModal member={approveMember} onClose={() => setApproveMember(null)} />
       <AssignGroupsModal   member={assignMember}  onClose={() => setAssignMember(null)} />
       <ConfirmDialog

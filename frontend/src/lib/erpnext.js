@@ -40,6 +40,22 @@ export async function fetchMember(docname) {
   return res.data.data
 }
 
+export async function approveFreeMember(docname, adminNote = '') {
+  const res = await api.put(`/resource/RIFAH Member/${docname}`, {
+    status: 'Active Free',
+    ...(adminNote && { admin_notes: adminNote }),
+  })
+  return res.data
+}
+
+export async function rejectMember(docname, reason = '') {
+  const res = await api.put(`/resource/RIFAH Member/${docname}`, {
+    status: 'Rejected',
+    ...(reason && { admin_notes: reason }),
+  })
+  return res.data
+}
+
 export async function approvePremium(docname) {
   const res = await api.put(`/resource/RIFAH Member/${docname}`, {
     status: 'Active Premium',
