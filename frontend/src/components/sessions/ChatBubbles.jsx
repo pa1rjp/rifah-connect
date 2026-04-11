@@ -40,7 +40,17 @@ function InteractiveBubble({ content }) {
 }
 
 function MessageContent({ msg }) {
-  if (msg.type === 'interactive') return <InteractiveBubble content={msg.content} />
+  // Outbound interactive = list/button we sent (full JSON payload)
+  if (msg.type === 'interactive' && msg.dir !== 'inbound') return <InteractiveBubble content={msg.content} />
+  // Inbound interactive_reply = user tapped a list/button option
+  if (msg.type === 'interactive_reply' || (msg.type === 'interactive' && msg.dir === 'inbound')) {
+    return (
+      <div className="flex items-center gap-1 text-sm">
+        <span className="text-blue-500">☑</span>
+        <span className="font-medium">{msg.content}</span>
+      </div>
+    )
+  }
   if (msg.type === 'image')       return <span className="italic text-gray-500">📷 Image</span>
   if (msg.type !== 'text')        return <span className="italic text-gray-500">📄 {msg.type}</span>
   return <p className="whitespace-pre-wrap break-words">{msg.content}</p>
@@ -68,7 +78,7 @@ export default function ChatBubbles({ session }) {
         return (
           <div key={msg.id || i} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm shadow-sm ${isOut ? 'bg-rifah-light text-gray-900 rounded-br-none' : 'bg-white text-gray-900 rounded-bl-none'}`}>
-              <MessageContent msg={msg} />
+              <MessageContent msg={{ ...msg, dir: isOut ? 'outbound' : 'inbound' }} />
               <div className="flex items-center justify-end gap-2 mt-1">
                 {isOut && msg.step && <span className="text-[10px] text-gray-400 font-mono">{msg.step}</span>}
                 <span className="text-[10px] text-gray-400">{msg.ts ? fmtDate(msg.ts) : ''}</span>
