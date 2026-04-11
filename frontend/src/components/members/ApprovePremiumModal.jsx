@@ -1,16 +1,24 @@
 import { useState } from 'react'
 import { X, CheckCircle } from 'lucide-react'
 import { useApprovePremium } from '@/hooks/useMembers'
+import { useToast } from '@/components/shared/Toast'
 
 export default function ApprovePremiumModal({ member, onClose }) {
   const [notes, setNotes] = useState('')
   const approve = useApprovePremium()
+  const toast = useToast()
 
   if (!member) return null
 
   async function handleApprove() {
-    await approve.mutateAsync({ docname: member.name })
-    onClose()
+    try {
+      await approve.mutateAsync({ docname: member.name })
+      toast('Member approved as Premium ✓', 'success')
+      onClose()
+    } catch (err) {
+      const msg = err?.response?.data?.exception || err?.response?.data?.message || err?.message || 'Approval failed'
+      toast(msg, 'error')
+    }
   }
 
   return (

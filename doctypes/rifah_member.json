@@ -135,9 +135,10 @@
       "reqd": 1
     },
     {
-      "fieldname": "years_operating",
-      "fieldtype": "Int",
-      "label": "Years Operating"
+      "fieldname": "email",
+      "fieldtype": "Data",
+      "label": "Email",
+      "options": "Email"
     },
     {
       "fieldname": "rifahmart_section",

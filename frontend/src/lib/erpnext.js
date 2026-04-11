@@ -29,7 +29,7 @@ export async function fetchMembers({ tier, status, search } = {}) {
   if (search) filters.push(['full_name', 'like', `%${search}%`])
 
   const fields = ['name','rifah_id','full_name','whatsapp_number','business_name','city_state',
-                  'industry','years_operating','membership_tier','status','registration_date',
+                  'industry','email','membership_tier','status','registration_date',
                   'rifahmart_url','groups_assigned','payment_transaction_id','payment_screenshot']
   const res = await api.get(`/resource/RIFAH Member?filters=${enc(filters)}&fields=${enc(fields)}&limit=200&order_by=registration_date+desc`)
   return res.data.data || []

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMembers, useSuspendMember } from '@/hooks/useMembers'
+import { useToast } from '@/components/shared/Toast'
 import DataTable from '@/components/shared/DataTable'
 import FilterBar from '@/components/shared/FilterBar'
 import StatusBadge from '@/components/shared/StatusBadge'
@@ -21,6 +22,7 @@ export default function Members() {
 
   const { data = [], isLoading } = useMembers({ search, tier, status })
   const suspend = useSuspendMember()
+  const toast   = useToast()
 
   const columns = [
     { key: 'rifah_id',       label: 'RIFAH ID',     render: v => <span className="font-mono text-xs">{v}</span> },
@@ -71,7 +73,15 @@ export default function Members() {
         message={`Suspend ${suspendTarget?.full_name} (${suspendTarget?.rifah_id})? They won't be able to use the bot.`}
         confirmLabel="Suspend"
         danger
-        onConfirm={async () => { await suspend.mutateAsync({ docname: suspendTarget.name }); setSuspendTarget(null) }}
+        onConfirm={async () => {
+          try {
+            await suspend.mutateAsync({ docname: suspendTarget.name })
+            toast('Member suspended', 'success')
+          } catch (err) {
+            toast(err?.response?.data?.exception || err?.message || 'Suspend failed', 'error')
+          }
+          setSuspendTarget(null)
+        }}
         onCancel={() => setSuspendTarget(null)}
       />
     </div>

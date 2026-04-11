@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ToastProvider } from '@/components/shared/Toast'
 import AppLayout from '@/components/layout/AppLayout'
 import Overview          from '@/pages/Overview'
 import ChatSessions      from '@/pages/ChatSessions'
@@ -13,6 +14,7 @@ const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, ret
 export default function App() {
   return (
     <QueryClientProvider client={qc}>
+      <ToastProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<AppLayout />}>
@@ -25,6 +27,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   )
 }

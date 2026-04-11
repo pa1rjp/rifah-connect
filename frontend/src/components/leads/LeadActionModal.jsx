@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useApproveLead, useRejectLead, useRequestInfo } from '@/hooks/useLeads'
+import { useToast } from '@/components/shared/Toast'
 import StatusBadge from '@/components/shared/StatusBadge'
 import TierBadge from '@/components/shared/TierBadge'
 
@@ -9,16 +10,24 @@ export default function LeadActionModal({ lead, onClose }) {
   const approve = useApproveLead()
   const reject  = useRejectLead()
   const request = useRequestInfo()
+  const toast   = useToast()
 
   if (!lead) return null
 
   const isPending = approve.isPending || reject.isPending || request.isPending
 
   async function handle(action) {
-    if (action === 'approve') await approve.mutateAsync({ docname: lead.name, note })
-    if (action === 'reject')  await reject.mutateAsync({ docname: lead.name, reason: note })
-    if (action === 'request') await request.mutateAsync({ docname: lead.name, note })
-    onClose()
+    try {
+      if (action === 'approve') await approve.mutateAsync({ docname: lead.name, note })
+      if (action === 'reject')  await reject.mutateAsync({ docname: lead.name, reason: note })
+      if (action === 'request') await request.mutateAsync({ docname: lead.name, note })
+      const labels = { approve: 'Lead approved ✓', reject: 'Lead rejected', request: 'Info requested from member' }
+      toast(labels[action], 'success')
+      onClose()
+    } catch (err) {
+      const msg = err?.response?.data?.exception || err?.response?.data?.message || err?.message || 'Action failed'
+      toast(msg, 'error')
+    }
   }
 
   return (

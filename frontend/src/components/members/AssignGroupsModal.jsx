@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useGroups } from '@/hooks/useGroups'
 import { useAssignGroups } from '@/hooks/useMembers'
+import { useToast } from '@/components/shared/Toast'
 
 export default function AssignGroupsModal({ member, onClose }) {
   const { data: groups = [] } = useGroups()
   const [selected, setSelected] = useState(member?.groups_assigned || '')
   const assign = useAssignGroups()
+  const toast  = useToast()
 
   function toggle(groupId) {
     const parts = selected.split(',').map(s => s.trim()).filter(Boolean)
@@ -17,8 +19,14 @@ export default function AssignGroupsModal({ member, onClose }) {
   }
 
   async function handleSave() {
-    await assign.mutateAsync({ docname: member.name, groups: selected })
-    onClose()
+    try {
+      await assign.mutateAsync({ docname: member.name, groups: selected })
+      toast('Groups assigned ✓', 'success')
+      onClose()
+    } catch (err) {
+      const msg = err?.response?.data?.exception || err?.response?.data?.message || err?.message || 'Save failed'
+      toast(msg, 'error')
+    }
   }
 
   if (!member) return null

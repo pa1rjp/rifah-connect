@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLeads, useMarkLeadPosted } from '@/hooks/useLeads'
+import { useToast } from '@/components/shared/Toast'
 import DataTable from '@/components/shared/DataTable'
 import FilterBar from '@/components/shared/FilterBar'
 import StatusBadge from '@/components/shared/StatusBadge'
@@ -23,6 +24,7 @@ export default function Leads() {
 
   const { data = [], isLoading } = useLeads({ search, tier, status, leadType, urgency })
   const markPosted = useMarkLeadPosted()
+  const toast      = useToast()
 
   const columns = [
     { key: 'lead_id',     label: 'Lead ID',  render: v => <span className="font-mono text-xs">{v}</span> },
@@ -42,7 +44,10 @@ export default function Leads() {
               className="text-xs px-2 py-1 rounded bg-rifah-teal text-white hover:bg-rifah-dark">Review</button>
           )}
           {r.status === 'Approved - Ready for Posting' && (
-            <button onClick={() => markPosted.mutate({ docname: r.name })}
+            <button onClick={() => markPosted.mutate({ docname: r.name }, {
+              onSuccess: () => toast('Lead marked as posted ✓', 'success'),
+              onError: err => toast(err?.response?.data?.exception || err?.message || 'Failed', 'error')
+            })}
               className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">Mark Posted</button>
           )}
         </div>

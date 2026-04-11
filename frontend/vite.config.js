@@ -14,7 +14,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
         configure: (proxy) => {
-          proxy.on('proxyReq', (req) => req.setHeader('Host', 'rifah.localhost'))
+          proxy.on('proxyReq', (req) => {
+            req.setHeader('Host', 'rifah.localhost')
+            req.removeHeader('Cookie') // prevent sid cookie from triggering CSRF check; token auth handles auth
+          })
         },
       },
       '/files': {

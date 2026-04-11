@@ -206,6 +206,23 @@ services:
     depends_on:
       - backend
 
+  # ── RIFAH Dashboard (React frontend) ─────────────────────
+  dashboard:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_KEY: ${ERPNEXT_API_KEY}
+        VITE_API_SECRET: ${ERPNEXT_API_SECRET}
+    container_name: rifah_dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - rifah_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # allows container to reach host on Linux/Mac
+
   # ── n8n Workflow Engine ───────────────────────────────────
   n8n:
     image: n8nio/n8n:latest
